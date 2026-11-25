@@ -85,6 +85,26 @@ describe('openai embedder', () => {
     expect((error as Error).message).not.toContain('test-key-not-real');
   });
 
+  it("includes the provider's error code, which names the cause", async () => {
+    const fetchMock = fakeFetch(() =>
+      Response.json(
+        { error: { message: 'You have no credits remaining.', type: 'insufficient_quota' } },
+        { status: 429 },
+      ),
+    );
+    const embedder = createOpenAIEmbedder({ ...options, fetch: fetchMock });
+    await expect(embedder.embed(['a'])).rejects.toThrow('HTTP 429 (insufficient_quota)');
+  });
+
+  it('ignores an error code that is not a short identifier', async () => {
+    const fetchMock = fakeFetch(() =>
+      Response.json({ error: { code: 'key test-key-not-real was rejected' } }, { status: 401 }),
+    );
+    const embedder = createOpenAIEmbedder({ ...options, fetch: fetchMock });
+    const error = await embedder.embed(['a']).catch((caught: unknown) => caught);
+    expect((error as Error).message).toBe('Embeddings request failed with HTTP 401');
+  });
+
   it('rejects vectors of the wrong dimension', async () => {
     const fetchMock = fakeFetch(() => Response.json({ data: [{ index: 0, embedding: [1, 2] }] }));
     const embedder = createOpenAIEmbedder({ ...options, fetch: fetchMock });

@@ -22,6 +22,21 @@ const chatBody = z.object({
   conversationId: z.uuid().optional(),
 });
 
+const CLIENT_ERRORS: Record<number, { code: string; message: string }> = {
+  400: { code: 'BAD_REQUEST', message: 'The request could not be understood' },
+  413: { code: 'PAYLOAD_TOO_LARGE', message: 'The request body is too large' },
+  415: { code: 'UNSUPPORTED_MEDIA_TYPE', message: 'Send the body as application/json' },
+  429: { code: 'RATE_LIMITED', message: 'Too many requests. Try again shortly.' },
+};
+
+function clientErrorStatus(error: unknown): number | undefined {
+  if (typeof error !== 'object' || error === null || !('statusCode' in error)) return undefined;
+  const { statusCode } = error;
+  return typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500
+    ? statusCode
+    : undefined;
+}
+
 function frame(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
@@ -131,6 +146,13 @@ export function buildServer(options: ServerOptions): FastifyInstance {
   );
 
   server.setErrorHandler((error, _request, reply) => {
+    // The framework and its plugins signal client mistakes (malformed JSON, an
+    // oversized body, too many requests) by throwing errors that carry a 4xx
+    // status. Those are the client's to fix, so pass the status through.
+    const status = clientErrorStatus(error);
+    if (status !== undefined) {
+      return reply.code(status).send({ error: CLIENT_ERRORS[status] ?? CLIENT_ERRORS[400] });
+    }
     server.log.error({ err: error }, 'unhandled error');
     // Internal detail stays in the logs. Clients get a stable, generic shape.
     return reply

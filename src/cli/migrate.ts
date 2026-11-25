@@ -12,6 +12,10 @@ const db = createPostgresDatabase({
 try {
   const ran = await migrate(db);
   console.log(ran.length === 0 ? 'Database is up to date.' : `Applied: ${ran.join(', ')}`);
+} catch (error) {
+  // A one-line reason, not a stack trace: these are operator-facing commands.
+  console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+  process.exitCode = 1;
 } finally {
   await db.close();
 }

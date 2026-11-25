@@ -1,3 +1,4 @@
+import { describeFailure } from '../provider-error.js';
 import { parseServerSentEvents } from './sse.js';
 import { LlmError, type LlmClient, type LlmRequest } from './types.js';
 
@@ -28,10 +29,10 @@ async function post(
   } catch (cause) {
     throw new LlmError('Model request failed before a response arrived', { cause });
   }
-  if (!response.ok || response.body === null) {
-    // Status only. Response bodies and request headers stay out of error messages and logs.
-    throw new LlmError(`Model request failed with HTTP ${String(response.status)}`);
+  if (!response.ok) {
+    throw new LlmError(`Model request failed with ${await describeFailure(response)}`);
   }
+  if (response.body === null) throw new LlmError('Model response had no body');
   return response.body;
 }
 

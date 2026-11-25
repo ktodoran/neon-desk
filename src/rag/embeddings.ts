@@ -1,3 +1,5 @@
+import { describeFailure } from '../provider-error.js';
+
 /**
  * Width of every stored embedding. The `chunks.embedding` column is declared
  * with this dimension, so changing it requires a migration and a re-ingest.
@@ -75,8 +77,7 @@ export function createOpenAIEmbedder(options: OpenAIEmbedderOptions): Embedder {
     }
 
     if (!response.ok) {
-      // Report the status only. The response body and request headers stay out of logs.
-      throw new EmbeddingError(`Embeddings request failed with HTTP ${String(response.status)}`);
+      throw new EmbeddingError(`Embeddings request failed with ${await describeFailure(response)}`);
     }
 
     const body: unknown = await response.json();

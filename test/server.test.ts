@@ -166,6 +166,20 @@ describe('POST /v1/chat', () => {
     expect(response.json()).toMatchObject({ error: { code: 'CONVERSATION_NOT_FOUND' } });
   });
 
+  it('answers 400, not 500, for a body that is not valid JSON', async () => {
+    const server = buildServer({ db, logLevel: false, chat: chat(scriptedLlm()) });
+    const response = await server.inject({
+      method: 'POST',
+      url: '/v1/chat',
+      headers: { 'content-type': 'application/json' },
+      payload: '{"message": ',
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({
+      error: { code: 'BAD_REQUEST', message: 'The request could not be understood' },
+    });
+  });
+
   it('answers 503 when no model is configured', async () => {
     const server = buildServer({ db, logLevel: false });
     const response = await server.inject({

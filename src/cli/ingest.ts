@@ -49,6 +49,10 @@ try {
       `${result.status.padEnd(9)} ${relative(dir, path)} (${String(result.chunks)} chunks)`,
     );
   }
+} catch (error) {
+  // A one-line reason, not a stack trace: these are operator-facing commands.
+  console.error(`Error: ${error instanceof Error ? error.message : String(error)}`);
+  process.exitCode = 1;
 } finally {
   await db.close();
 }
