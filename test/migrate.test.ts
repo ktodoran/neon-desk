@@ -16,7 +16,11 @@ describe('migrate', () => {
     const { rows } = await db.query<{ name: string }>(
       'SELECT name FROM schema_migrations ORDER BY name',
     );
-    expect(rows.map((row) => row.name)).toEqual(['001_init.sql']);
+    expect(rows.map((row) => row.name)).toEqual([
+      '001_init.sql',
+      '002_hybrid_search.sql',
+      '003_conversations.sql',
+    ]);
 
     expect(await migrate(db)).toEqual([]);
   });
