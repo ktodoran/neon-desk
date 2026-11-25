@@ -63,6 +63,31 @@ describe('loadConfig', () => {
     ).toThrow(/CHUNK_OVERLAP_CHARS/);
   });
 
+  it('allows no browser origins by default', () => {
+    expect(loadConfig(base).http).toEqual({
+      allowedOrigins: [],
+      rateLimit: { max: 20, windowSeconds: 60 },
+      trustProxy: false,
+    });
+  });
+
+  it('parses a comma-separated origin allowlist', () => {
+    const config = loadConfig({
+      ...base,
+      ALLOWED_ORIGINS: 'https://www.example.com/, https://shop.example.com',
+    });
+    expect(config.http.allowedOrigins).toEqual([
+      'https://www.example.com',
+      'https://shop.example.com',
+    ]);
+  });
+
+  it('rejects an origin that is not a URL', () => {
+    expect(() => loadConfig({ ...base, ALLOWED_ORIGINS: 'example.com' })).toThrow(
+      /ALLOWED_ORIGINS/,
+    );
+  });
+
   it('leaves chat unconfigured when no LLM provider is set', () => {
     expect(loadConfig({ ...base, LLM_PROVIDER: '' }).llm).toBeUndefined();
   });

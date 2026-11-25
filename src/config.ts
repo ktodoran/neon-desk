@@ -16,6 +16,24 @@ const schema = z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
       .default('info'),
 
+    // Browser origins allowed to call the API, comma-separated. Empty allows none.
+    ALLOWED_ORIGINS: z
+      .string()
+      .default('')
+      .transform((value) =>
+        value
+          .split(',')
+          .map((origin) => origin.trim().replace(/\/+$/, ''))
+          .filter((origin) => origin !== ''),
+      )
+      .pipe(z.array(z.url())),
+    // Chat requests allowed per client address per window.
+    RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(10_000).default(20),
+    RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().int().min(1).max(3600).default(60),
+    // Set to true only behind a proxy you control. It makes the server trust
+    // X-Forwarded-For, which a direct client could otherwise forge.
+    TRUST_PROXY: booleanFromEnv.default(false),
+
     DATABASE_URL: z.string().min(1),
     DATABASE_SSL: booleanFromEnv.default(false),
     // Keep this low on serverless runtimes, where every instance holds its own pool.
@@ -97,6 +115,11 @@ export interface Config {
   readonly nodeEnv: Env['NODE_ENV'];
   readonly port: number;
   readonly logLevel: Env['LOG_LEVEL'];
+  readonly http: {
+    readonly allowedOrigins: readonly string[];
+    readonly rateLimit: { readonly max: number; readonly windowSeconds: number };
+    readonly trustProxy: boolean;
+  };
   readonly database: { readonly url: string; readonly ssl: boolean; readonly poolMax: number };
   readonly embeddings: {
     readonly provider: Env['EMBEDDINGS_PROVIDER'];
@@ -163,6 +186,11 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     nodeEnv: e.NODE_ENV,
     port: e.PORT,
     logLevel: e.LOG_LEVEL,
+    http: {
+      allowedOrigins: e.ALLOWED_ORIGINS,
+      rateLimit: { max: e.RATE_LIMIT_MAX, windowSeconds: e.RATE_LIMIT_WINDOW_SECONDS },
+      trustProxy: e.TRUST_PROXY,
+    },
     database: { url: e.DATABASE_URL, ssl: e.DATABASE_SSL, poolMax: e.DATABASE_POOL_MAX },
     embeddings: {
       provider: e.EMBEDDINGS_PROVIDER,

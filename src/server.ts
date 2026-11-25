@@ -1,4 +1,6 @@
 import { Readable } from 'node:stream';
+import cors from '@fastify/cors';
+import rateLimit from '@fastify/rate-limit';
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
@@ -15,7 +17,26 @@ export interface ServerOptions {
   readonly logLevel: string | false;
   /** Undefined when no LLM is configured. The chat route then answers 503. */
   readonly chat?: ChatDependencies | undefined;
+  readonly http?: HttpOptions | undefined;
 }
+
+export interface HttpOptions {
+  /** Browser origins allowed to call the API. Empty allows none. */
+  readonly allowedOrigins: readonly string[];
+  /** Chat requests allowed per client address per window. */
+  readonly rateLimit: { readonly max: number; readonly windowSeconds: number };
+  /** Trust X-Forwarded-For. Only correct behind a proxy you control. */
+  readonly trustProxy: boolean;
+}
+
+const DEFAULT_HTTP: HttpOptions = {
+  allowedOrigins: [],
+  rateLimit: { max: 20, windowSeconds: 60 },
+  trustProxy: false,
+};
+
+/** A chat request is a short message and an id. Anything larger is not one. */
+const MAX_BODY_BYTES = 16 * 1024;
 
 const chatBody = z.object({
   message: z.string().trim().min(1).max(4000),
@@ -68,10 +89,27 @@ async function* toServerSentEvents(
   }
 }
 
-export function buildServer(options: ServerOptions): FastifyInstance {
+export async function buildServer(options: ServerOptions): Promise<FastifyInstance> {
+  const http = options.http ?? DEFAULT_HTTP;
   const server = Fastify({
     logger: options.logLevel === false ? false : { level: options.logLevel },
+    bodyLimit: MAX_BODY_BYTES,
+    trustProxy: http.trustProxy,
   });
+
+  // The widget runs in a customer's browser, so it cannot hold a secret. What
+  // the browser can be made to enforce is which sites may call this API.
+  // An Origin header is trivially forged outside a browser; the rate limit
+  // below, not this allowlist, is what bounds cost.
+  await server.register(cors, {
+    origin: http.allowedOrigins.length === 0 ? false : [...http.allowedOrigins],
+    methods: ['GET', 'POST'],
+  });
+
+  // Registered without a global limit, then applied to the one route that
+  // spends money. Counters live in this process: behind several instances the
+  // effective limit is multiplied, and a shared store is the fix.
+  await server.register(rateLimit, { global: false });
 
   /**
    * Readiness, not just liveness: reports whether the database answers, so a
@@ -87,7 +125,13 @@ export function buildServer(options: ServerOptions): FastifyInstance {
     }
   });
 
-  server.post('/v1/chat', async (request, reply) => {
+  const chatRoute = {
+    config: {
+      rateLimit: { max: http.rateLimit.max, timeWindow: http.rateLimit.windowSeconds * 1000 },
+    },
+  };
+
+  server.post('/v1/chat', chatRoute, async (request, reply) => {
     if (options.chat === undefined) {
       return reply.code(503).send({
         error: { code: 'CHAT_NOT_CONFIGURED', message: 'No language model is configured' },

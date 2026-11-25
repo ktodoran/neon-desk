@@ -28,7 +28,7 @@ async function main(): Promise<void> {
           },
           maxTokens: config.llm.maxTokens,
         };
-  const server = buildServer({ db, logLevel: config.logLevel, chat });
+  const server = await buildServer({ db, logLevel: config.logLevel, chat, http: config.http });
   if (chat === undefined) {
     server.log.warn('LLM_PROVIDER is not set; POST /v1/chat will answer 503');
   }

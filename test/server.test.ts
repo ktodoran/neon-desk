@@ -19,7 +19,7 @@ function fakeDatabase(query: Database['query']): Database {
 
 describe('server', () => {
   it('reports healthy when the database answers', async () => {
-    const server = buildServer({
+    const server = await buildServer({
       db: fakeDatabase(() => Promise.resolve({ rows: [] })),
       logLevel: false,
     });
@@ -29,7 +29,7 @@ describe('server', () => {
   });
 
   it('reports unavailable when the database does not', async () => {
-    const server = buildServer({
+    const server = await buildServer({
       db: fakeDatabase(() => Promise.reject(new Error('connection refused'))),
       logLevel: false,
     });
@@ -40,7 +40,7 @@ describe('server', () => {
   });
 
   it('answers unknown routes with a stable error shape', async () => {
-    const server = buildServer({
+    const server = await buildServer({
       db: fakeDatabase(() => Promise.resolve({ rows: [] })),
       logLevel: false,
     });
@@ -100,7 +100,7 @@ describe('POST /v1/chat', () => {
   });
 
   it('streams meta, deltas and done as server-sent events', async () => {
-    const server = buildServer({
+    const server = await buildServer({
       db,
       logLevel: false,
       chat: chat(scriptedLlm('Within thirty days of delivery [1].')),
@@ -129,7 +129,7 @@ describe('POST /v1/chat', () => {
   });
 
   it('reports a mid-stream failure in-band, without internal detail', async () => {
-    const server = buildServer({
+    const server = await buildServer({
       db,
       logLevel: false,
       chat: chat(scriptedLlm(new Error('upstream secret detail'))),
@@ -147,7 +147,7 @@ describe('POST /v1/chat', () => {
   });
 
   it('rejects an invalid body before streaming anything', async () => {
-    const server = buildServer({ db, logLevel: false, chat: chat(scriptedLlm()) });
+    const server = await buildServer({ db, logLevel: false, chat: chat(scriptedLlm()) });
     for (const payload of [{}, { message: '   ' }, { message: 'hi', conversationId: 'nope' }]) {
       const response = await server.inject({ method: 'POST', url: '/v1/chat', payload });
       expect(response.statusCode).toBe(400);
@@ -156,7 +156,7 @@ describe('POST /v1/chat', () => {
   });
 
   it('answers 404 for an unknown conversation', async () => {
-    const server = buildServer({ db, logLevel: false, chat: chat(scriptedLlm()) });
+    const server = await buildServer({ db, logLevel: false, chat: chat(scriptedLlm()) });
     const response = await server.inject({
       method: 'POST',
       url: '/v1/chat',
@@ -167,7 +167,7 @@ describe('POST /v1/chat', () => {
   });
 
   it('answers 400, not 500, for a body that is not valid JSON', async () => {
-    const server = buildServer({ db, logLevel: false, chat: chat(scriptedLlm()) });
+    const server = await buildServer({ db, logLevel: false, chat: chat(scriptedLlm()) });
     const response = await server.inject({
       method: 'POST',
       url: '/v1/chat',
@@ -180,8 +180,82 @@ describe('POST /v1/chat', () => {
     });
   });
 
+  it('answers 413 for an oversized body', async () => {
+    const server = await buildServer({ db, logLevel: false, chat: chat(scriptedLlm()) });
+    const response = await server.inject({
+      method: 'POST',
+      url: '/v1/chat',
+      payload: { message: 'x'.repeat(20_000) },
+    });
+    expect(response.statusCode).toBe(413);
+    expect(response.json()).toMatchObject({ error: { code: 'PAYLOAD_TOO_LARGE' } });
+  });
+
+  it('rate limits the chat route per client, and only the chat route', async () => {
+    const server = await buildServer({
+      db,
+      logLevel: false,
+      chat: chat(scriptedLlm('One [1].', 'Two [1].')),
+      http: { allowedOrigins: [], rateLimit: { max: 2, windowSeconds: 60 }, trustProxy: false },
+    });
+    const ask = () =>
+      server.inject({
+        method: 'POST',
+        url: '/v1/chat',
+        payload: { message: 'What is your return policy?' },
+      });
+
+    expect((await ask()).statusCode).toBe(200);
+    expect((await ask()).statusCode).toBe(200);
+    const limited = await ask();
+    expect(limited.statusCode).toBe(429);
+    expect(limited.json()).toMatchObject({ error: { code: 'RATE_LIMITED' } });
+
+    // Health checks come from infrastructure and must never be throttled.
+    expect((await server.inject({ method: 'GET', url: '/health' })).statusCode).toBe(200);
+  });
+
+  it('answers a preflight only for an allowed origin', async () => {
+    const server = await buildServer({
+      db,
+      logLevel: false,
+      chat: chat(scriptedLlm()),
+      http: {
+        allowedOrigins: ['https://shop.example.com'],
+        rateLimit: { max: 20, windowSeconds: 60 },
+        trustProxy: false,
+      },
+    });
+    const preflight = (origin: string) =>
+      server.inject({
+        method: 'OPTIONS',
+        url: '/v1/chat',
+        headers: {
+          origin,
+          'access-control-request-method': 'POST',
+          'access-control-request-headers': 'content-type',
+        },
+      });
+
+    const allowed = await preflight('https://shop.example.com');
+    expect(allowed.headers['access-control-allow-origin']).toBe('https://shop.example.com');
+
+    const other = await preflight('https://evil.example.net');
+    expect(other.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  it('allows no cross-origin callers by default', async () => {
+    const server = await buildServer({ db, logLevel: false, chat: chat(scriptedLlm()) });
+    const response = await server.inject({
+      method: 'OPTIONS',
+      url: '/v1/chat',
+      headers: { origin: 'https://shop.example.com', 'access-control-request-method': 'POST' },
+    });
+    expect(response.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
   it('answers 503 when no model is configured', async () => {
-    const server = buildServer({ db, logLevel: false });
+    const server = await buildServer({ db, logLevel: false });
     const response = await server.inject({
       method: 'POST',
       url: '/v1/chat',
@@ -205,7 +279,7 @@ describe('POST /v1/chat', () => {
         });
       },
     };
-    const server = buildServer({ db, logLevel: false, chat: chat(stalled) });
+    const server = await buildServer({ db, logLevel: false, chat: chat(stalled) });
     const address = await server.listen({ port: 0, host: '127.0.0.1' });
 
     try {
