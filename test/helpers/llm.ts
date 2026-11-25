@@ -39,3 +39,11 @@ export function streamOf(...chunks: string[]): ReadableStream<Uint8Array> {
     },
   });
 }
+
+/** The reply a routing call would give. */
+export function routed(
+  intent: 'question' | 'action_request' | 'human_request',
+  query: string,
+): string {
+  return JSON.stringify({ intent, query });
+}

@@ -6,7 +6,7 @@ import { createHashEmbedder } from '../src/rag/embeddings.js';
 import { ingestDocument } from '../src/rag/ingest.js';
 import { buildServer } from '../src/server.js';
 import { createTestDatabase } from './helpers/database.js';
-import { scriptedLlm } from './helpers/llm.js';
+import { routed, scriptedLlm } from './helpers/llm.js';
 
 function fakeDatabase(query: Database['query']): Database {
   return {
@@ -103,7 +103,9 @@ describe('POST /v1/chat', () => {
     const server = await buildServer({
       db,
       logLevel: false,
-      chat: chat(scriptedLlm('Within thirty days of delivery [1].')),
+      chat: chat(
+        scriptedLlm(routed('question', 'return policy'), 'Within thirty days of delivery [1].'),
+      ),
     });
     const response = await server.inject({
       method: 'POST',
@@ -124,7 +126,7 @@ describe('POST /v1/chat', () => {
     expect(text).toBe('Within thirty days of delivery [1].');
     expect(events.at(-1)).toMatchObject({
       event: 'done',
-      data: { escalated: false, citations: [{ marker: 1, title: 'Returns' }] },
+      data: { escalated: false, reason: null, citations: [{ marker: 1, title: 'Returns' }] },
     });
   });
 
@@ -132,7 +134,9 @@ describe('POST /v1/chat', () => {
     const server = await buildServer({
       db,
       logLevel: false,
-      chat: chat(scriptedLlm(new Error('upstream secret detail'))),
+      chat: chat(
+        scriptedLlm(routed('question', 'return policy'), new Error('upstream secret detail')),
+      ),
     });
     const response = await server.inject({
       method: 'POST',
@@ -195,7 +199,14 @@ describe('POST /v1/chat', () => {
     const server = await buildServer({
       db,
       logLevel: false,
-      chat: chat(scriptedLlm('One [1].', 'Two [1].')),
+      chat: chat(
+        scriptedLlm(
+          routed('question', 'return policy'),
+          'One [1].',
+          routed('question', 'return policy'),
+          'Two [1].',
+        ),
+      ),
       http: { allowedOrigins: [], rateLimit: { max: 2, windowSeconds: 60 }, trustProxy: false },
     });
     const ask = () =>
@@ -269,6 +280,10 @@ describe('POST /v1/chat', () => {
     let aborted = false;
     const stalled: LlmClient = {
       async *stream(request) {
+        if (request.system.startsWith('You route')) {
+          yield routed('question', 'return policy');
+          return;
+        }
         yield 'Within thirty days [1]. ';
         // Then hang, as a slow model would, until the request is cancelled.
         await new Promise<void>((resolve) => {

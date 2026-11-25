@@ -1,5 +1,5 @@
 import type { Database } from '../db/types.js';
-import { collect, type LlmClient, type LlmMessage } from '../llm/types.js';
+import type { LlmClient } from '../llm/types.js';
 import type { Embedder } from '../rag/embeddings.js';
 import { hybridSearch, type HybridSearchOptions, type RetrievedChunk } from '../rag/search.js';
 import {
@@ -10,13 +10,13 @@ import {
   type Citation,
 } from './conversations.js';
 import {
-  buildRewriteMessages,
   buildSystemPrompt,
   citedMarkers,
-  noAnswerMessage,
-  REWRITE_SYSTEM_PROMPT,
+  handoffMessage,
   type AssistantSettings,
 } from './prompt.js';
+import { redactCardNumbers } from './redact.js';
+import { routeMessage, type Intent } from './route.js';
 
 export interface ChatDependencies {
   readonly db: Database;
@@ -33,6 +33,10 @@ export interface ChatInput {
   readonly message: string;
 }
 
+/** Why a conversation should go to a person. */
+export type EscalationReason =
+  'action_request' | 'human_request' | 'no_relevant_sources' | 'ungrounded_answer';
+
 export type ChatEvent =
   | { readonly type: 'delta'; readonly text: string }
   | {
@@ -40,12 +44,17 @@ export type ChatEvent =
       readonly citations: readonly Citation[];
       /** True when the customer should be routed to a person. */
       readonly escalated: boolean;
+      /** Set exactly when `escalated` is true. */
+      readonly reason: EscalationReason | null;
     };
 
 export interface ChatSession {
   readonly conversationId: string;
+  readonly intent: Intent;
   /** The query used for retrieval, after any rewriting. */
   readonly searchQuery: string;
+  /** What was retrieved, in the order the model saw it. Empty when nothing was searched. */
+  readonly sources: readonly RetrievedChunk[];
   readonly events: () => AsyncGenerator<ChatEvent>;
 }
 
@@ -55,36 +64,6 @@ export class ConversationNotFoundError extends Error {
 
 /** Turns of history given to the model. Older turns are dropped, not summarized. */
 const HISTORY_LIMIT = 10;
-const REWRITE_MAX_TOKENS = 128;
-
-/**
- * A follow-up like "what about international?" retrieves nothing useful on
- * its own. With history present, ask the model for a standalone query first.
- * If that fails, search with the message as written: a weaker search beats
- * failing the whole request.
- */
-async function standaloneQuery(
-  llm: LlmClient,
-  history: readonly LlmMessage[],
-  message: string,
-  signal: AbortSignal | undefined,
-): Promise<string> {
-  if (history.length === 0) return message;
-  try {
-    const rewritten = await collect(
-      llm.stream({
-        system: REWRITE_SYSTEM_PROMPT,
-        messages: buildRewriteMessages(history, message),
-        maxTokens: REWRITE_MAX_TOKENS,
-        ...(signal === undefined ? {} : { signal }),
-      }),
-    );
-    const query = rewritten.trim();
-    return query === '' ? message : query;
-  } catch {
-    return message;
-  }
-}
 
 function toCitations(markers: readonly number[], sources: readonly RetrievedChunk[]): Citation[] {
   return markers.flatMap((marker) => {
@@ -97,7 +76,7 @@ function toCitations(markers: readonly number[], sources: readonly RetrievedChun
 
 /**
  * Does everything that can fail before a response starts: resolving the
- * conversation, rewriting the query and retrieving sources. The returned
+ * conversation, routing the message and retrieving sources. The returned
  * session then streams the answer. Splitting it this way lets an HTTP handler
  * reject a bad request with a normal status code instead of mid-stream.
  */
@@ -107,6 +86,8 @@ export async function startChat(
   signal?: AbortSignal,
 ): Promise<ChatSession> {
   const { db, llm, settings } = deps;
+  // Before anything else sees the message: the model, the database, the logs.
+  const message = redactCardNumbers(input.message);
 
   let conversationId = input.conversationId;
   if (conversationId === undefined) {
@@ -117,20 +98,28 @@ export async function startChat(
   const id = conversationId;
 
   const history = await recentMessages(db, id, HISTORY_LIMIT);
-  const searchQuery = await standaloneQuery(llm, history, input.message, signal);
-  const sources = await hybridSearch(deps, searchQuery, deps.search);
+  const routing = await routeMessage(llm, history, message, signal);
+  // Requests to act, and requests for a person, are never searched or answered.
+  const sources =
+    routing.intent === 'question' ? await hybridSearch(deps, routing.query, deps.search) : [];
 
   async function* events(): AsyncGenerator<ChatEvent> {
     let answer = '';
+    let reason: EscalationReason | null = null;
 
-    if (sources.length === 0) {
+    if (routing.intent !== 'question') {
+      reason = routing.intent;
+      answer = handoffMessage(routing.intent, settings);
+      yield { type: 'delta', text: answer };
+    } else if (sources.length === 0) {
       // Nothing relevant was retrieved. Do not ask a model to answer from nothing.
-      answer = noAnswerMessage(settings);
+      reason = 'no_relevant_sources';
+      answer = handoffMessage('no_relevant_sources', settings);
       yield { type: 'delta', text: answer };
     } else {
       const stream = llm.stream({
         system: buildSystemPrompt(settings, sources),
-        messages: [...history, { role: 'user', content: input.message }],
+        messages: [...history, { role: 'user', content: message }],
         maxTokens: deps.maxTokens,
         ...(signal === undefined ? {} : { signal }),
       });
@@ -141,14 +130,21 @@ export async function startChat(
     }
 
     const citations = toCitations(citedMarkers(answer, sources.length), sources);
+    // An answer that cites nothing is not grounded in the knowledge base.
+    if (reason === null && citations.length === 0) reason = 'ungrounded_answer';
 
     // Persist only a completed exchange. If the model fails mid-answer, the
     // error propagates and the conversation is left exactly as it was.
-    await db.transaction((tx) => appendExchange(tx, id, input.message, answer, citations));
+    await db.transaction((tx) => appendExchange(tx, id, message, answer, citations));
 
-    // An answer that cites nothing is not grounded in the knowledge base.
-    yield { type: 'done', citations, escalated: citations.length === 0 };
+    yield { type: 'done', citations, escalated: reason !== null, reason };
   }
 
-  return { conversationId: id, searchQuery, events };
+  return {
+    conversationId: id,
+    intent: routing.intent,
+    searchQuery: routing.query,
+    sources,
+    events,
+  };
 }
