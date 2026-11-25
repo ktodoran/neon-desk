@@ -20,6 +20,7 @@ const policy = {
 function spyEmbedder(): Embedder & { embed: ReturnType<typeof vi.fn<Embedder['embed']>> } {
   const real = createHashEmbedder();
   return {
+    model: real.model,
     dimensions: real.dimensions,
     embed: vi.fn<Embedder['embed']>((texts) => real.embed(texts)),
   };
@@ -98,6 +99,7 @@ describe('ingestDocument', () => {
     const first = await ingestDocument({ db, embedder: good, chunking }, policy);
 
     const failing: Embedder = {
+      model: good.model,
       dimensions: good.dimensions,
       embed: () => Promise.reject(new Error('provider is down')),
     };
@@ -115,6 +117,7 @@ describe('ingestDocument', () => {
     // Vectors of the wrong width are rejected by the column type, mid-transaction,
     // after the old chunks have already been deleted inside it.
     const wrongWidth: Embedder = {
+      model: good.model,
       dimensions: 3,
       embed: (texts) => Promise.resolve(texts.map(() => [1, 0, 0])),
     };
@@ -127,6 +130,24 @@ describe('ingestDocument', () => {
       'SELECT content FROM chunks ORDER BY chunk_index LIMIT 1',
     );
     expect(rows[0]?.content).toContain('Returns are accepted within thirty days');
+  });
+
+  it('re-embeds an unchanged document when the embedding model changes', async () => {
+    const first = spyEmbedder();
+    await ingestDocument({ db, embedder: first, chunking }, policy);
+
+    // Same text, different model: the stored vectors are no longer comparable.
+    const real = createHashEmbedder();
+    const second = { ...spyEmbedder(), model: 'another-model' };
+    const result = await ingestDocument({ db, embedder: second, chunking }, policy);
+
+    expect(result.status).toBe('updated');
+    expect(second.embed).toHaveBeenCalledTimes(1);
+    const { rows } = await db.query<{ embedding_model: string }>(
+      'SELECT embedding_model FROM documents',
+    );
+    expect(rows).toEqual([{ embedding_model: 'another-model' }]);
+    expect(real.model).toBe('hash-v1');
   });
 
   it('rejects a document with no text', async () => {

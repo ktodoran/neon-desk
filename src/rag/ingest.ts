@@ -37,7 +37,7 @@ const INSERT_BATCH = 500;
  *
  * A document is identified by (source, externalId), not by its content, so an
  * edited document replaces its previous version instead of sitting beside it.
- * The content hash is only used to skip work when nothing changed.
+ * The content hash and embedding model are only used to skip work when neither changed.
  */
 export async function ingestDocument(
   deps: IngestDependencies,
@@ -47,8 +47,13 @@ export async function ingestDocument(
   const contentHash = createHash('sha256').update(doc.content).digest('hex');
   const url = doc.url ?? null;
 
-  const existing = await db.query<{ id: string; content_hash: string; chunk_count: number }>(
-    `SELECT d.id, d.content_hash, count(c.id)::int AS chunk_count
+  const existing = await db.query<{
+    id: string;
+    content_hash: string;
+    embedding_model: string | null;
+    chunk_count: number;
+  }>(
+    `SELECT d.id, d.content_hash, d.embedding_model, count(c.id)::int AS chunk_count
        FROM documents d
        LEFT JOIN chunks c ON c.document_id = d.id
       WHERE d.source = $1 AND d.external_id = $2
@@ -57,8 +62,8 @@ export async function ingestDocument(
   );
   const current = existing.rows[0];
 
-  if (current?.content_hash === contentHash) {
-    // Same text: keep the embeddings, refresh only the metadata.
+  if (current?.content_hash === contentHash && current.embedding_model === embedder.model) {
+    // Same text, same embedding model: keep the vectors, refresh only the metadata.
     await db.query('UPDATE documents SET title = $1, url = $2, updated_at = now() WHERE id = $3', [
       doc.title,
       url,
@@ -81,15 +86,16 @@ export async function ingestDocument(
 
   const documentId = await db.transaction(async (tx) => {
     const upserted = await tx.query<{ id: string }>(
-      `INSERT INTO documents (id, source, external_id, title, url, content_hash)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO documents (id, source, external_id, title, url, content_hash, embedding_model)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (source, external_id) DO UPDATE
          SET title = EXCLUDED.title,
              url = EXCLUDED.url,
              content_hash = EXCLUDED.content_hash,
+             embedding_model = EXCLUDED.embedding_model,
              updated_at = now()
        RETURNING id`,
-      [randomUUID(), doc.source, doc.externalId, doc.title, url, contentHash],
+      [randomUUID(), doc.source, doc.externalId, doc.title, url, contentHash, embedder.model],
     );
     const id = upserted.rows[0]?.id;
     if (id === undefined) throw new IngestError('Document upsert returned no row');

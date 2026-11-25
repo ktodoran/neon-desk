@@ -5,6 +5,8 @@
 export const EMBEDDING_DIMENSIONS = 1536;
 
 export interface Embedder {
+  /** Identifies the model. Stored with each document so a change triggers re-embedding. */
+  readonly model: string;
   readonly dimensions: number;
   /** Returns one vector per input, in input order. */
   readonly embed: (texts: readonly string[]) => Promise<number[][]>;
@@ -92,6 +94,7 @@ export function createOpenAIEmbedder(options: OpenAIEmbedderOptions): Embedder {
   }
 
   return {
+    model: options.model,
     dimensions,
     async embed(texts: readonly string[]): Promise<number[][]> {
       const vectors: number[][] = [];
@@ -139,6 +142,7 @@ export function createHashEmbedder(dimensions: number = EMBEDDING_DIMENSIONS): E
   }
 
   return {
+    model: 'hash-v1',
     dimensions,
     embed: (texts) => Promise.resolve(texts.map(embedOne)),
   };

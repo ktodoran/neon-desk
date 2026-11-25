@@ -20,6 +20,7 @@ describe('migrate', () => {
       '001_init.sql',
       '002_hybrid_search.sql',
       '003_conversations.sql',
+      '004_embedding_model.sql',
     ]);
 
     expect(await migrate(db)).toEqual([]);
