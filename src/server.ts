@@ -1,10 +1,56 @@
-import Fastify, { type FastifyInstance } from 'fastify';
+import { Readable } from 'node:stream';
+import Fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify';
+import { z } from 'zod';
+import {
+  ConversationNotFoundError,
+  startChat,
+  type ChatDependencies,
+  type ChatSession,
+} from './chat/chat.js';
 import type { Database } from './db/types.js';
 
 export interface ServerOptions {
   readonly db: Database;
   /** A pino level, or false to disable logging (used by tests). */
   readonly logLevel: string | false;
+  /** Undefined when no LLM is configured. The chat route then answers 503. */
+  readonly chat?: ChatDependencies | undefined;
+}
+
+const chatBody = z.object({
+  message: z.string().trim().min(1).max(4000),
+  conversationId: z.uuid().optional(),
+});
+
+function frame(event: string, data: unknown): string {
+  return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+}
+
+/**
+ * The chat response as Server-Sent Events:
+ *   meta   { conversationId }           once, first
+ *   delta  { text }                     zero or more
+ *   done   { citations, escalated }     once, on success
+ *   error  { code, message }            once, instead of done, on failure
+ */
+async function* toServerSentEvents(
+  session: ChatSession,
+  log: FastifyBaseLogger,
+): AsyncGenerator<string> {
+  yield frame('meta', { conversationId: session.conversationId });
+  try {
+    for await (const event of session.events()) {
+      const { type, ...data } = event;
+      yield frame(type, data);
+    }
+  } catch (error) {
+    // Headers are already sent, so the failure has to travel in-band.
+    log.error({ err: error }, 'chat stream failed');
+    yield frame('error', {
+      code: 'STREAM_FAILED',
+      message: 'The answer could not be completed.',
+    });
+  }
 }
 
 export function buildServer(options: ServerOptions): FastifyInstance {
@@ -24,6 +70,60 @@ export function buildServer(options: ServerOptions): FastifyInstance {
       server.log.error({ err: error }, 'health check failed');
       return reply.code(503).send({ status: 'unavailable' });
     }
+  });
+
+  server.post('/v1/chat', async (request, reply) => {
+    if (options.chat === undefined) {
+      return reply.code(503).send({
+        error: { code: 'CHAT_NOT_CONFIGURED', message: 'No language model is configured' },
+      });
+    }
+
+    const parsed = chatBody.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: {
+          code: 'INVALID_REQUEST',
+          message: 'Expected { message: string (1-4000 characters), conversationId?: uuid }',
+        },
+      });
+    }
+
+    // Stop paying for generation when the customer closes the tab.
+    const abort = new AbortController();
+    reply.raw.on('close', () => {
+      if (!reply.raw.writableFinished) abort.abort();
+    });
+
+    let session: ChatSession;
+    try {
+      session = await startChat(
+        options.chat,
+        {
+          message: parsed.data.message,
+          ...(parsed.data.conversationId === undefined
+            ? {}
+            : { conversationId: parsed.data.conversationId }),
+        },
+        abort.signal,
+      );
+    } catch (error) {
+      if (error instanceof ConversationNotFoundError) {
+        return reply.code(404).send({
+          error: { code: 'CONVERSATION_NOT_FOUND', message: 'Conversation not found' },
+        });
+      }
+      throw error;
+    }
+
+    return (
+      reply
+        .header('content-type', 'text/event-stream; charset=utf-8')
+        .header('cache-control', 'no-cache, no-transform')
+        // Tells nginx-style proxies not to buffer the stream.
+        .header('x-accel-buffering', 'no')
+        .send(Readable.from(toServerSentEvents(session, request.log)))
+    );
   });
 
   server.setNotFoundHandler((_request, reply) =>

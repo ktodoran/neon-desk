@@ -10,13 +10,19 @@ describe('loadConfig', () => {
   it('applies defaults', () => {
     const config = loadConfig(base);
     expect(config.port).toBe(3000);
-    expect(config.database.ssl).toBe(false);
+    expect(config.database).toEqual({
+      url: 'postgres://localhost/test',
+      ssl: false,
+      poolMax: 10,
+    });
     expect(config.rag).toEqual({
       topK: 5,
+      candidates: 20,
       minScore: 0.3,
       chunkMaxChars: 1000,
       chunkOverlapChars: 150,
     });
+    expect(config.llm).toBeUndefined();
   });
 
   it('reads the string "false" as false', () => {
@@ -55,6 +61,38 @@ describe('loadConfig', () => {
     expect(() =>
       loadConfig({ ...base, CHUNK_MAX_CHARS: '200', CHUNK_OVERLAP_CHARS: '200' }),
     ).toThrow(/CHUNK_OVERLAP_CHARS/);
+  });
+
+  it('leaves chat unconfigured when no LLM provider is set', () => {
+    expect(loadConfig({ ...base, LLM_PROVIDER: '' }).llm).toBeUndefined();
+  });
+
+  it('requires a key and a model once an LLM provider is set', () => {
+    expect(() => loadConfig({ ...base, LLM_PROVIDER: 'anthropic' })).toThrow(
+      /LLM_API_KEY[\s\S]*LLM_MODEL/,
+    );
+  });
+
+  it('fills in the provider base URL and has no default model', () => {
+    const config = loadConfig({
+      ...base,
+      LLM_PROVIDER: 'anthropic',
+      LLM_API_KEY: 'test-key-not-real',
+      LLM_MODEL: 'some-model',
+    });
+    expect(config.llm).toEqual({
+      provider: 'anthropic',
+      apiKey: 'test-key-not-real',
+      model: 'some-model',
+      baseUrl: 'https://api.anthropic.com/v1',
+      maxTokens: 800,
+    });
+  });
+
+  it('rejects fewer candidates than results', () => {
+    expect(() => loadConfig({ ...base, RAG_TOP_K: '10', RAG_CANDIDATES: '5' })).toThrow(
+      /RAG_CANDIDATES/,
+    );
   });
 
   it('strips a trailing slash from the embeddings base URL', () => {

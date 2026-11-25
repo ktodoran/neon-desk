@@ -30,6 +30,7 @@ const config = loadConfig();
 const db = createPostgresDatabase({
   connectionString: config.database.url,
   ssl: config.database.ssl,
+  maxConnections: config.database.poolMax,
 });
 const embedder = createEmbedder(config.embeddings);
 const chunking = {
