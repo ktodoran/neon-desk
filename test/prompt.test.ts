@@ -8,6 +8,7 @@ function source(title: string, content: string): RetrievedChunk {
   return {
     chunkId: 'c',
     documentId: 'd',
+    externalId: 'x.md',
     chunkIndex: 0,
     content,
     title,

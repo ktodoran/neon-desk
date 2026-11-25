@@ -4,6 +4,8 @@ import { toVectorLiteral, type Embedder } from './embeddings.js';
 export interface SearchHit {
   readonly chunkId: string;
   readonly documentId: string;
+  /** The document's id within its source, as given at ingestion. */
+  readonly externalId: string;
   readonly chunkIndex: number;
   readonly content: string;
   readonly title: string;
@@ -27,6 +29,7 @@ export interface SearchDependencies {
 interface Row {
   chunk_id: string;
   document_id: string;
+  external_id: string;
   chunk_index: number;
   content: string;
   title: string;
@@ -39,6 +42,7 @@ function toHit(row: Row): SearchHit {
   return {
     chunkId: row.chunk_id,
     documentId: row.document_id,
+    externalId: row.external_id,
     chunkIndex: row.chunk_index,
     content: row.content,
     title: row.title,
@@ -67,6 +71,7 @@ export async function searchChunks(
   const { rows } = await deps.db.query<Row>(
     `SELECT c.id AS chunk_id,
             c.document_id,
+            d.external_id,
             c.chunk_index,
             c.content,
             d.title,
@@ -114,6 +119,7 @@ export async function keywordSearch(
      )
      SELECT c.id AS chunk_id,
             c.document_id,
+            d.external_id,
             c.chunk_index,
             c.content,
             d.title,
@@ -124,7 +130,7 @@ export async function keywordSearch(
        JOIN documents d ON d.id = c.document_id
        CROSS JOIN q
       WHERE q.tsq IS NOT NULL AND c.tsv @@ q.tsq
-      ORDER BY score DESC, c.id
+      ORDER BY score DESC, d.external_id, c.chunk_index
       LIMIT $2`,
     [query, limit],
   );
@@ -177,14 +183,25 @@ export async function hybridSearch(
   ]);
 
   const byId = new Map([...byVector, ...byKeyword].map((hit) => [hit.chunkId, hit]));
-  return [...byId.values()]
-    .map((hit) => ({
-      ...hit,
-      score: fused.get(hit.chunkId) ?? 0,
-      vectorScore: vectorScores.get(hit.chunkId) ?? null,
-      keywordMatch: keywordIds.has(hit.chunkId),
-    }))
-    .filter((hit) => hit.keywordMatch || (hit.vectorScore ?? -1) >= options.minScore)
-    .sort((a, b) => b.score - a.score || a.chunkId.localeCompare(b.chunkId))
-    .slice(0, options.topK);
+  return (
+    [...byId.values()]
+      .map((hit) => ({
+        ...hit,
+        score: fused.get(hit.chunkId) ?? 0,
+        vectorScore: vectorScores.get(hit.chunkId) ?? null,
+        keywordMatch: keywordIds.has(hit.chunkId),
+      }))
+      .filter((hit) => hit.keywordMatch || (hit.vectorScore ?? -1) >= options.minScore)
+      // Fused scores tie often, because they depend only on rank. Break ties on
+      // properties of the content, never on generated ids, so the same data and
+      // query always produce the same order.
+      .sort(
+        (a, b) =>
+          b.score - a.score ||
+          (b.vectorScore ?? -1) - (a.vectorScore ?? -1) ||
+          a.externalId.localeCompare(b.externalId) ||
+          a.chunkIndex - b.chunkIndex,
+      )
+      .slice(0, options.topK)
+  );
 }
