@@ -1,4 +1,4 @@
-# rag-support-assistant
+# Neon Desk
 
 A retrieval-grounded customer support assistant any company can embed. It answers from the company's own documents, shows which ones it used, and hands off to a person when it should not answer.
 
