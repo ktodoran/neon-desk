@@ -5,18 +5,26 @@ export interface ServerSentEvent {
 }
 
 /**
- * Parses a Server-Sent Events byte stream.
+ * Turns Server-Sent Events text into events, a piece at a time.
  *
- * Network chunks do not respect event boundaries, so bytes are buffered and
- * an event is emitted only once its terminating blank line has arrived.
+ * Network chunks do not respect event boundaries, so text is buffered and an
+ * event is emitted only once its terminating blank line has arrived. This part
+ * has no I/O in it, so the server and the browser widget share it.
  */
-export async function* parseServerSentEvents(
-  body: ReadableStream<Uint8Array>,
-): AsyncGenerator<ServerSentEvent> {
-  const decoder = new TextDecoder();
-  let buffer = '';
+export interface SseDecoder {
+  /** Feeds decoded text and returns the events it completed. */
+  push(text: string): ServerSentEvent[];
+  /** Returns whatever the end of the stream completes. */
+  end(): ServerSentEvent[];
+}
 
-  function* drain(final: boolean): Generator<ServerSentEvent> {
+export function createSseDecoder(): SseDecoder {
+  let buffer = '';
+  // A trailing \r may be the first half of a \r\n split across chunks; hold it back.
+  let carry = '';
+
+  function drain(final: boolean): ServerSentEvent[] {
+    const events: ServerSentEvent[] = [];
     const normalized = buffer.replace(/\r\n?/g, '\n');
     const blocks = normalized.split('\n\n');
     // The last block is incomplete until the stream ends.
@@ -32,18 +40,35 @@ export async function* parseServerSentEvents(
         if (field === 'event') event = value;
         else if (field === 'data') data.push(value);
       }
-      if (data.length > 0) yield { event, data: data.join('\n') };
+      if (data.length > 0) events.push({ event, data: data.join('\n') });
     }
+    return events;
   }
 
-  // A trailing \r may be the first half of a \r\n split across chunks; hold it back.
-  let carry = '';
+  return {
+    push(chunk) {
+      const text = carry + chunk;
+      carry = text.endsWith('\r') ? '\r' : '';
+      buffer += carry === '' ? text : text.slice(0, -1);
+      return drain(false);
+    },
+    end() {
+      buffer += carry;
+      carry = '';
+      return drain(true);
+    },
+  };
+}
+
+/** Parses a Server-Sent Events byte stream. */
+export async function* parseServerSentEvents(
+  body: ReadableStream<Uint8Array>,
+): AsyncGenerator<ServerSentEvent> {
+  const text = new TextDecoder();
+  const decoder = createSseDecoder();
   for await (const chunk of body) {
-    const text = carry + decoder.decode(chunk, { stream: true });
-    carry = text.endsWith('\r') ? '\r' : '';
-    buffer += carry === '' ? text : text.slice(0, -1);
-    yield* drain(false);
+    yield* decoder.push(text.decode(chunk, { stream: true }));
   }
-  buffer += carry + decoder.decode();
-  yield* drain(true);
+  yield* decoder.push(text.decode());
+  yield* decoder.end();
 }
