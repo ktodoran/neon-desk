@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { approach, gazeToward } from '../src/frog.js';
+import { approach, gazeToward } from '../src/rig.js';
 
 const origin = { x: 500, y: 500 };
 
-describe('where the frog looks', () => {
+describe('where a character looks', () => {
   it('looks toward the target on each axis', () => {
     expect(gazeToward(origin, { x: 900, y: 500 })).toMatchObject({ y: 0 });
     expect(gazeToward(origin, { x: 900, y: 500 }).x).toBeGreaterThan(0);

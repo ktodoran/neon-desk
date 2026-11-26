@@ -7,7 +7,13 @@ import {
   type Message,
 } from './conversation.js';
 import { createDemoTransport } from './demo.js';
-import { Frog, type FrogMood, type Point } from './frog.js';
+import {
+  findCharacter,
+  isCharacterId,
+  registerCharacter,
+  type Character,
+} from './characters/index.js';
+import { Rig, type Mood, type Point } from './rig.js';
 import { STYLES } from './styles.js';
 import { readTheme, themeVariables } from './theme.js';
 import { createHttpTransport, type Transport } from './transport.js';
@@ -22,6 +28,7 @@ const ATTRIBUTES = [
   'nudge',
   'handoff-url',
   'mascot',
+  'mascot-name',
   'theme',
   'accent',
   'corners',
@@ -80,7 +87,7 @@ interface Mascot {
   readonly element: HTMLElement;
   start(): void;
   stop(): void;
-  setMood(mood: FrogMood): void;
+  setMood(mood: Mood): void;
   pointTo(point: Point): void;
   lookAt(point: Point, milliseconds: number): void;
   speak(): void;
@@ -119,6 +126,9 @@ function imageMascot(url: string, reducedMotion: boolean): Mascot {
   };
 }
 
+/** The widgets on the page, so a character registered late reaches them. */
+const live = new Set<NeonDeskElement>();
+
 /**
  * <neon-desk>: a support chat any site can drop in.
  *
@@ -128,6 +138,18 @@ function imageMascot(url: string, reducedMotion: boolean): Mascot {
 export class NeonDeskElement extends HTMLElement {
   static readonly observedAttributes = ATTRIBUTES;
 
+  /**
+   * Adds a character of the site's own, drawn to the rig's part names, so that
+   * `mascot="<its id>"` gives it the same motion as the built-in ones. Widgets
+   * already on the page that ask for it are redrawn.
+   */
+  static registerCharacter(character: Character): void {
+    const { id } = registerCharacter(character);
+    for (const widget of live) {
+      if (widget.getAttribute('mascot')?.trim() === id) widget.attributeChangedCallback();
+    }
+  }
+
   /** Replace to send messages somewhere other than `endpoint`. */
   transport: Transport | null = null;
 
@@ -136,6 +158,8 @@ export class NeonDeskElement extends HTMLElement {
   private isOpen = false;
   private request: AbortController | null = null;
   private mascot: Mascot | null = null;
+  /** What the character is called, or null when there is none to name. */
+  private mascotName: string | null = null;
   private moodTimer = 0;
   private nudgeTimer = 0;
   private built = false;
@@ -156,6 +180,7 @@ export class NeonDeskElement extends HTMLElement {
   }
 
   connectedCallback(): void {
+    live.add(this);
     this.build();
     document.addEventListener('pointermove', this.onPointerMove, { passive: true });
     // A touch screen has no hovering pointer, so taps and scrolling are what it can watch.
@@ -172,6 +197,7 @@ export class NeonDeskElement extends HTMLElement {
   }
 
   disconnectedCallback(): void {
+    live.delete(this);
     document.removeEventListener('pointermove', this.onPointerMove);
     document.removeEventListener('pointerdown', this.onPointerMove);
     window.removeEventListener('scroll', this.onScroll);
@@ -219,7 +245,7 @@ export class NeonDeskElement extends HTMLElement {
     this.isOpen = false;
     this.frame.toggleAttribute('data-open', false);
     this.launcher.setAttribute('aria-expanded', 'false');
-    this.launcher.setAttribute('aria-label', 'Open chat');
+    this.launcher.setAttribute('aria-label', this.openLabel);
     this.moveMascot(true);
     const panel = this.panel;
     if (this.reducedMotion) {
@@ -271,24 +297,30 @@ export class NeonDeskElement extends HTMLElement {
     }
   }
 
-  private mood: FrogMood = 'idle';
+  private mood: Mood = 'idle';
 
   /** A method, not a field: an answer arriving changes it between two checks. */
   private isBusy(): boolean {
     return this.conversation.status !== 'idle';
   }
 
-  private setMood(mood: FrogMood): void {
+  private setMood(mood: Mood): void {
     clearTimeout(this.moodTimer);
     this.mood = mood;
     this.mascot?.setMood(mood);
+    const who = this.mascotName;
+    // Short enough to stay on one line beside the character.
     this.status.textContent =
-      mood === 'thinking'
-        ? 'Reading the help pages'
-        : mood === 'speaking'
-          ? 'Answering'
-          : mood === 'asleep'
-            ? 'Not connected'
+      mood === 'asleep'
+        ? 'Not connected'
+        : mood === 'thinking'
+          ? who === null
+            ? 'Reading the help pages'
+            : `${who} is reading`
+          : mood === 'speaking'
+            ? who === null
+              ? 'Answering'
+              : `${who} is answering`
             : 'Answers from the help pages';
   }
 
@@ -319,6 +351,10 @@ export class NeonDeskElement extends HTMLElement {
     return `${name}${/s$/i.test(name) ? '’' : '’s'} help pages`;
   }
 
+  private get openLabel(): string {
+    return this.mascotName === null ? 'Open chat' : `Open chat with ${this.mascotName}`;
+  }
+
   private resolveTransport(): Transport | null {
     if (this.transport !== null) return this.transport;
     if (this.hasAttribute('demo')) return (this.transport = createDemoTransport());
@@ -336,6 +372,12 @@ export class NeonDeskElement extends HTMLElement {
   private build(): void {
     const settings = readTheme((name) => this.getAttribute(name));
     const name = this.attribute('name') ?? 'Support';
+    const character = this.character;
+    // A company's own image has a name only if the site gives it one.
+    this.mascotName =
+      this.attribute('mascot') === 'none'
+        ? null
+        : (this.attribute('mascot-name') ?? character?.name ?? null);
 
     const style = h('style');
     style.textContent = STYLES;
@@ -399,7 +441,7 @@ export class NeonDeskElement extends HTMLElement {
       {
         class: 'nd-launcher nd-cut',
         type: 'button',
-        'aria-label': 'Open chat',
+        'aria-label': this.openLabel,
         'aria-expanded': 'false',
         'aria-controls': 'nd-panel',
       },
@@ -413,7 +455,7 @@ export class NeonDeskElement extends HTMLElement {
       this.panel,
       this.launcher,
     );
-    this.mascot = this.buildMascot();
+    this.mascot = this.buildMascot(character);
     if (this.mascot !== null) {
       this.mascot.element.classList.add('nd-mascot');
       this.frame.toggleAttribute('data-mascot', true);
@@ -455,7 +497,7 @@ export class NeonDeskElement extends HTMLElement {
     this.input.addEventListener('input', () => {
       this.input.style.height = 'auto';
       this.input.style.height = `${String(this.input.scrollHeight + 2)}px`;
-      // The frog's eyes follow what is being typed. Its body stays still.
+      // The character's eyes follow what is being typed. Its body stays still.
       const box = this.input.getBoundingClientRect();
       const along = Math.min(1, this.input.value.length / 40);
       this.mascot?.lookAt({ x: box.left + box.width * along, y: box.top + box.height / 2 }, 1400);
@@ -468,10 +510,19 @@ export class NeonDeskElement extends HTMLElement {
     requestAnimationFrame(this.settleMascot);
   }
 
-  private buildMascot(): Mascot | null {
+  /** The character the `mascot` attribute names, if it names one. */
+  private get character(): Character | undefined {
+    return findCharacter(this.attribute('mascot') ?? 'frog');
+  }
+
+  private buildMascot(character: Character | undefined): Mascot | null {
     const choice = this.attribute('mascot') ?? 'frog';
     if (choice === 'none') return null;
-    if (choice === 'frog') return new Frog(document, { reducedMotion: this.reducedMotion });
+    if (character !== undefined) {
+      return new Rig(document, character, { reducedMotion: this.reducedMotion });
+    }
+    // A bare word is a character that is not registered yet, not an image called that.
+    if (isCharacterId(choice)) return null;
     const url = safeUrl(choice);
     return url === null ? null : imageMascot(url, this.reducedMotion);
   }
@@ -558,7 +609,9 @@ export class NeonDeskElement extends HTMLElement {
     if (opening === null) {
       const greeting =
         this.attribute('greeting') ??
-        `Hi. I answer from ${this.helpPages}, and say so when I can’t.`;
+        (this.mascotName === null
+          ? `Hi. I answer from ${this.helpPages}, and say so when I can’t.`
+          : `Hi, I’m ${this.mascotName}. I answer from ${this.helpPages}, and say so when I can’t.`);
       opening = h(
         'div',
         { class: 'nd-opening nd-message', 'data-role': 'assistant' },

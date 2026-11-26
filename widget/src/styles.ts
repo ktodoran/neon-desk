@@ -349,32 +349,62 @@ a.nd-source:hover { border-color: var(--nd-accent); color: var(--nd-text); }
 .nd-mascot img { display: block; width: 100%; aspect-ratio: 560 / 480; object-fit: contain; }
 .nd-mascot[data-mood="thinking"] img { animation: nd-pulse 0.9s ease-in-out infinite; }
 
-.ndf { --ndf-look-x: 0; --ndf-look-y: 0; --ndf-lid: 0; --ndf-jaw: 0; --ndf-throat: 0; }
-.ndf-body { transform-origin: 50% 100%; }
-.ndf-svg {
+/* Every character is moved by the same few numbers, which the rig sets each frame. */
+.ndc { --ndc-look-x: 0; --ndc-look-y: 0; --ndc-lid: 0; --ndc-jaw: 0; --ndc-signal: 0; }
+.ndc-body { transform-origin: 50% 100%; }
+.ndc-svg {
+  /* The brightness of the signal light. A character with no mouth also flickers it to speak. */
+  --ndc-light: var(--ndc-signal);
   display: block;
   width: 100%;
+  aspect-ratio: 560 / 480;
   overflow: visible;
   /* The whole head leans toward what it is looking at. */
-  transform: translate(calc(var(--ndf-look-x) * 6%), calc(var(--ndf-look-y) * 5%))
-    rotate(calc(var(--ndf-look-x) * 10deg));
+  transform: translate(calc(var(--ndc-look-x) * 6%), calc(var(--ndc-look-y) * 5%))
+    rotate(calc(var(--ndc-look-x) * 10deg));
   transform-origin: 50% 80%;
+  filter: drop-shadow(0 0 6px var(--ndc-glow, transparent))
+    drop-shadow(0 0 calc(var(--ndc-light) * 12px) var(--ndc-glow, transparent));
+}
+.ndc-no-jaw { --ndc-light: max(var(--ndc-signal), var(--ndc-jaw)); }
+.ndc-pupil {
+  transform: translate(
+    calc(var(--ndc-look-x) * var(--ndc-reach-x, 12px)),
+    calc(var(--ndc-look-y) * var(--ndc-reach-y, 10px))
+  );
+}
+.ndc-lid { transform-box: fill-box; transform-origin: 50% 0; transform: scaleY(var(--ndc-lid)); }
+.ndc-crease { opacity: 0; }
+.ndc.is-shut .ndc-crease { opacity: 1; }
+.ndc.is-shut .ndc-dim { opacity: 0.45; }
+.ndc-jaw { transform: translateY(calc(var(--ndc-jaw) * var(--ndc-drop, 14px))); }
+.ndc-on { opacity: calc(0.25 + var(--ndc-light) * 0.75); }
+.ndc-sig { opacity: var(--ndc-light); }
+.ndc-soft { opacity: calc(var(--ndc-light) * 0.4); }
+.ndc-grow {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  transform: scale(calc(0.75 + var(--ndc-light) * 0.75));
+}
+.ndc[data-mood="asleep"] .ndc-svg { filter: saturate(0.55) brightness(0.8); }
+
+/* The frog was drawn before the shared part names, so it keeps its own. */
+.ndf-svg {
   filter: drop-shadow(0 0 6px rgb(183 255 26 / 0.35))
-    drop-shadow(0 0 calc(var(--ndf-throat) * 16px) rgb(0 229 255 / 0.7));
+    drop-shadow(0 0 calc(var(--ndc-signal) * 16px) rgb(0 229 255 / 0.7));
 }
 .ndf-socket { fill: #060907; }
 .ndf-nostril { fill: #07140d; }
 .ndf-mouth { fill: #030504; }
-.ndf-jaw { transform: translateY(calc(var(--ndf-jaw) * 40px + var(--ndf-throat) * 6px)); }
-.ndf-throat-glow { opacity: calc(0.08 + var(--ndf-throat) * 0.9); }
+.ndf-jaw { transform: translateY(calc(var(--ndc-jaw) * 40px + var(--ndc-signal) * 6px)); }
+.ndf-throat-glow { opacity: calc(0.08 + var(--ndc-signal) * 0.9); }
 .ndf-vee { fill: none; stroke: #00e5ff; stroke-width: 4.5; stroke-linecap: round; }
-.ndf-vee-soft { fill: none; stroke: #00e5ff; stroke-width: 16; opacity: calc(0.14 + var(--ndf-throat) * 0.6); }
-.ndf-pupil { transform: translate(calc(var(--ndf-look-x) * 17px), calc(var(--ndf-look-y) * 13px)); }
-.ndf-glint { transform: translate(calc(var(--ndf-look-x) * -5px), calc(var(--ndf-look-y) * -4px)); }
-.ndf-lid { transform-box: fill-box; transform-origin: 50% 0; transform: scaleY(var(--ndf-lid)); }
+.ndf-vee-soft { fill: none; stroke: #00e5ff; stroke-width: 16; opacity: calc(0.14 + var(--ndc-signal) * 0.6); }
+.ndf-pupil { transform: translate(calc(var(--ndc-look-x) * 17px), calc(var(--ndc-look-y) * 13px)); }
+.ndf-glint { transform: translate(calc(var(--ndc-look-x) * -5px), calc(var(--ndc-look-y) * -4px)); }
+.ndf-lid { transform-box: fill-box; transform-origin: 50% 0; transform: scaleY(var(--ndc-lid)); }
 .ndf-crease { opacity: 0; }
-.ndf.is-shut .ndf-crease { opacity: 1; }
-.ndf[data-mood="asleep"] .ndf-svg { filter: saturate(0.55) brightness(0.8); }
+.ndc.is-shut .ndf-crease { opacity: 1; }
 
 @keyframes nd-open { from { opacity: 0; transform: translateY(14px) scale(0.97); } }
 @keyframes nd-close { to { opacity: 0; transform: translateY(10px) scale(0.98); } }
@@ -402,6 +432,6 @@ a.nd-source:hover { border-color: var(--nd-accent); color: var(--nd-text); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
-  .ndf-svg { transform: none; }
+  .ndc-svg { transform: none; }
 }
 `;

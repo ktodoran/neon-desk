@@ -1,7 +1,7 @@
-import { FROG_SVG } from './frog-art.js';
+import type { Character } from './characters/index.js';
 
-/** What the assistant is doing, which is what the frog shows. */
-export type FrogMood = 'idle' | 'thinking' | 'speaking' | 'handoff' | 'asleep';
+/** What the assistant is doing, which is what the character shows. */
+export type Mood = 'idle' | 'thinking' | 'speaking' | 'handoff' | 'asleep';
 
 export interface Point {
   readonly x: number;
@@ -14,7 +14,7 @@ const clamp = (value: number, low: number, high: number): number =>
 /**
  * Where the eyes should point to look at something, as -1..1 on each axis.
  *
- * The response is steep near the frog and flattens with distance, so the eyes
+ * The response is steep near the character and flattens with distance, so the eyes
  * visibly move for a pointer anywhere on the page instead of pinning to the
  * edge as soon as it leaves the widget.
  */
@@ -41,23 +41,24 @@ interface Glance {
 }
 
 /**
- * The frog. It owns one element and a frame loop that turns "what is happening"
- * (a mood, a pointer position, a spoken syllable) into a handful of CSS custom
- * properties. All of the drawing and easing lives in the stylesheet.
+ * What moves a character. It owns one element and a frame loop that turns
+ * "what is happening" (a mood, a pointer position, a spoken syllable) into a
+ * handful of CSS custom properties. The drawing decides what those properties
+ * move: the rig is the same for every character.
  */
-export class Frog {
+export class Rig {
   readonly element: HTMLDivElement;
   private readonly body: HTMLDivElement;
   private readonly reducedMotion: boolean;
 
-  private mood: FrogMood = 'idle';
+  private mood: Mood = 'idle';
   private gaze: Point = { x: 0, y: 0 };
   private pointer: Point | null = null;
   private pointerMovedAt = 0;
   private glance: Glance | null = null;
   private lid = 0;
   private jaw = 0;
-  private throat = 0;
+  private signal = 0;
   private squintUntil = 0;
   private blinkAt = 0;
   private blinkUntil = 0;
@@ -68,14 +69,28 @@ export class Frog {
   private centreReadAt = -Infinity;
   private pointerNear = false;
 
-  constructor(doc: Document, options: { reducedMotion: boolean }) {
+  constructor(doc: Document, character: Character, options: { reducedMotion: boolean }) {
     this.reducedMotion = options.reducedMotion;
     this.element = doc.createElement('div');
-    this.element.className = 'ndf';
+    this.element.className = 'ndc';
+    this.element.dataset['character'] = character.id;
     this.body = doc.createElement('div');
-    this.body.className = 'ndf-body';
-    // Static markup defined in this bundle, not user input.
-    this.body.innerHTML = FROG_SVG;
+    this.body.className = 'ndc-body';
+    // Markup from this bundle, or cleaned by sanitizeSvg when the site registered it.
+    this.body.innerHTML = character.svg;
+    const drawing = this.body.querySelector('svg');
+    if (drawing !== null) {
+      drawing.classList.add('ndc-svg');
+      drawing.setAttribute('aria-hidden', 'true');
+      drawing.setAttribute('focusable', 'false');
+      if (character.look !== undefined) {
+        drawing.style.setProperty('--ndc-reach-x', `${String(character.look.x)}px`);
+        drawing.style.setProperty('--ndc-reach-y', `${String(character.look.y)}px`);
+      }
+      if (character.jaw === undefined) drawing.classList.add('ndc-no-jaw');
+      else drawing.style.setProperty('--ndc-drop', `${String(character.jaw)}px`);
+      if (character.glow !== undefined) drawing.style.setProperty('--ndc-glow', character.glow);
+    }
     this.element.append(this.body);
     this.element.addEventListener('pointerdown', () => {
       this.poke();
@@ -97,13 +112,13 @@ export class Frog {
     this.frame = 0;
   }
 
-  setMood(mood: FrogMood): void {
+  setMood(mood: Mood): void {
     this.mood = mood;
     this.element.dataset['mood'] = mood;
     if (this.reducedMotion) this.paint();
   }
 
-  /** Tells the frog where the pointer is, in viewport coordinates. */
+  /** Tells the character where the pointer is, in viewport coordinates. */
   pointTo(point: Point): void {
     this.pointer = point;
     this.pointerMovedAt = performance.now();
@@ -117,12 +132,15 @@ export class Frog {
     };
   }
 
-  /** One syllable: the jaw drops and springs back. Called once per piece of the answer. */
+  /**
+   * One syllable, called once per piece of the answer: the jaw drops and springs
+   * back, or the signal light flickers on a character that has no mouth.
+   */
   speak(): void {
     this.jaw = 1;
   }
 
-  /** A small dip, for each key the customer presses. */
+  /** A small dip, for a pointer that comes close. */
   bob(): void {
     this.play(
       [
@@ -149,11 +167,11 @@ export class Frog {
     );
   }
 
-  /** Being tapped: it blinks, puffs its throat and hops. */
+  /** Being tapped: it blinks, lights up and hops. */
   poke(): void {
     const now = performance.now();
     this.blinkAt = now;
-    this.throat = 1;
+    this.signal = 1;
     this.hop();
   }
 
@@ -187,11 +205,11 @@ export class Frog {
     }
     if (this.pointer !== null && now - this.pointerMovedAt < 6000) {
       const centre = this.readCentre();
-      // The pointer coming right up to it gets a reaction: a blink and a puffed throat.
+      // The pointer coming right up to it gets a reaction: a blink and its signal light.
       const near = Math.hypot(this.pointer.x - centre.x, this.pointer.y - centre.y) < 90;
       if (near && !this.pointerNear) {
         this.blinkAt = now;
-        this.throat = 1;
+        this.signal = 1;
         this.bob();
       }
       this.pointerNear = near;
@@ -217,7 +235,7 @@ export class Frog {
       if (idle && this.glance === null) {
         const gaze = { x: Math.random() * 1.6 - 0.8, y: Math.random() * 0.8 - 0.5 };
         this.glance = { gaze, until: now + 900 + Math.random() * 700 };
-        if (Math.random() < 0.3) this.throat = 0.8;
+        if (Math.random() < 0.3) this.signal = 0.8;
       }
     }
 
@@ -233,10 +251,10 @@ export class Frog {
     this.lid = approach(this.lid, lid, lid > this.lid ? 60 : 22, seconds);
 
     this.jaw = approach(this.jaw, 0, 13, seconds);
-    let throat = 0;
-    if (this.mood === 'thinking') throat = 0.55 + 0.45 * Math.sin(now / 150);
-    else if (this.mood === 'speaking') throat = 0.5;
-    this.throat = approach(this.throat, throat, this.mood === 'thinking' ? 30 : 4, seconds);
+    let signal = 0;
+    if (this.mood === 'thinking') signal = 0.55 + 0.45 * Math.sin(now / 150);
+    else if (this.mood === 'speaking') signal = 0.5;
+    this.signal = approach(this.signal, signal, this.mood === 'thinking' ? 30 : 4, seconds);
 
     this.paint();
     this.frame = requestAnimationFrame(this.tick);
@@ -246,14 +264,14 @@ export class Frog {
     if (this.reducedMotion) {
       // No movement: only the steady signals a still image can carry.
       this.lid = this.mood === 'asleep' ? 1 : 0;
-      this.throat = this.mood === 'thinking' || this.mood === 'speaking' ? 0.7 : 0;
+      this.signal = this.mood === 'thinking' || this.mood === 'speaking' ? 0.7 : 0;
     }
     const style = this.element.style;
-    style.setProperty('--ndf-look-x', this.gaze.x.toFixed(3));
-    style.setProperty('--ndf-look-y', this.gaze.y.toFixed(3));
-    style.setProperty('--ndf-lid', this.lid.toFixed(3));
-    style.setProperty('--ndf-jaw', this.jaw.toFixed(3));
-    style.setProperty('--ndf-throat', this.throat.toFixed(3));
+    style.setProperty('--ndc-look-x', this.gaze.x.toFixed(3));
+    style.setProperty('--ndc-look-y', this.gaze.y.toFixed(3));
+    style.setProperty('--ndc-lid', this.lid.toFixed(3));
+    style.setProperty('--ndc-jaw', this.jaw.toFixed(3));
+    style.setProperty('--ndc-signal', this.signal.toFixed(3));
     this.element.classList.toggle('is-shut', this.lid > 0.9);
   }
 }

@@ -34,7 +34,7 @@ describe('<neon-desk>', () => {
     const launcher = shadow(widget).querySelector('.nd-launcher');
     const panel = shadow(widget).querySelector<HTMLElement>('.nd-panel');
 
-    expect(launcher?.getAttribute('aria-label')).toBe('Open chat');
+    expect(launcher?.getAttribute('aria-label')).toBe('Open chat with Pogo');
     expect(launcher?.getAttribute('aria-expanded')).toBe('false');
     expect(panel?.hidden).toBe(true);
     expect(panel?.getAttribute('aria-label')).toBe('Acme Outfitters support chat');
@@ -278,7 +278,7 @@ describe('<neon-desk>', () => {
   });
 
   it('draws the frog by default, with the parts that move', () => {
-    const frog = shadow(mount()).querySelector('.nd-mascot.ndf');
+    const frog = shadow(mount()).querySelector('.nd-mascot[data-character="frog"]');
 
     expect(frog?.querySelectorAll('.ndf-pupil')).toHaveLength(2);
     expect(frog?.querySelectorAll('.ndf-lid')).toHaveLength(2);
