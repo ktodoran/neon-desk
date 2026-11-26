@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
@@ -18,6 +19,8 @@ export interface ServerOptions {
   /** Undefined when no LLM is configured. The chat route then answers 503. */
   readonly chat?: ChatDependencies | undefined;
   readonly http?: HttpOptions | undefined;
+  /** The built widget bundle. Undefined when it has not been built; GET /widget.js then answers 404. */
+  readonly widgetScript?: string | undefined;
 }
 
 export interface HttpOptions {
@@ -123,6 +126,26 @@ export async function buildServer(options: ServerOptions): Promise<FastifyInstan
       server.log.error({ err: error }, 'health check failed');
       return reply.code(503).send({ status: 'unavailable' });
     }
+  });
+
+  // The widget is served from here so a site needs one address: the script and
+  // the API it talks to. It is a file that changes only on deploy, so the ETag
+  // lets browsers keep their copy.
+  const widgetTag =
+    options.widgetScript === undefined
+      ? undefined
+      : `"${createHash('sha256').update(options.widgetScript).digest('base64url').slice(0, 22)}"`;
+  server.get('/widget.js', (request, reply) => {
+    if (options.widgetScript === undefined || widgetTag === undefined) {
+      return reply.code(404).send({
+        error: { code: 'WIDGET_NOT_BUILT', message: 'Run `npm run build` to produce the widget' },
+      });
+    }
+    void reply.header('etag', widgetTag).header('cache-control', 'public, max-age=300');
+    if (request.headers['if-none-match'] === widgetTag) return reply.code(304).send();
+    return reply
+      .header('content-type', 'text/javascript; charset=utf-8')
+      .send(options.widgetScript);
   });
 
   const chatRoute = {

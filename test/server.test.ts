@@ -39,6 +39,38 @@ describe('server', () => {
     expect(response.body).not.toContain('connection refused');
   });
 
+  it('serves the widget script, and lets a browser keep its copy', async () => {
+    const server = await buildServer({
+      db: fakeDatabase(() => Promise.resolve({ rows: [] })),
+      logLevel: false,
+      widgetScript: 'console.log("widget")',
+    });
+    const first = await server.inject({ method: 'GET', url: '/widget.js' });
+    expect(first.statusCode).toBe(200);
+    expect(first.headers['content-type']).toBe('text/javascript; charset=utf-8');
+    expect(first.body).toBe('console.log("widget")');
+
+    const etag = first.headers['etag'];
+    expect(etag).toBeTypeOf('string');
+    const again = await server.inject({
+      method: 'GET',
+      url: '/widget.js',
+      headers: { 'if-none-match': String(etag) },
+    });
+    expect(again.statusCode).toBe(304);
+    expect(again.body).toBe('');
+  });
+
+  it('says so when the widget has not been built', async () => {
+    const server = await buildServer({
+      db: fakeDatabase(() => Promise.resolve({ rows: [] })),
+      logLevel: false,
+    });
+    const response = await server.inject({ method: 'GET', url: '/widget.js' });
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toMatchObject({ error: { code: 'WIDGET_NOT_BUILT' } });
+  });
+
   it('answers unknown routes with a stable error shape', async () => {
     const server = await buildServer({
       db: fakeDatabase(() => Promise.resolve({ rows: [] })),

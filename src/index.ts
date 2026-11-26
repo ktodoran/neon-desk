@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { ConfigError, loadConfig } from './config.js';
 import { createPostgresDatabase } from './db/postgres.js';
 import { createLlmClient } from './llm/providers.js';
@@ -5,6 +7,21 @@ import { createEmbedder } from './rag/embeddings.js';
 import { buildServer } from './server.js';
 
 const SHUTDOWN_GRACE_MS = 10_000;
+
+/**
+ * The widget bundle `npm run build` writes. It sits beside this file when
+ * running the build, and under dist/ when running the source with tsx.
+ */
+async function loadWidgetScript(): Promise<string | undefined> {
+  for (const candidate of ['widget/neon-desk.js', '../dist/widget/neon-desk.js']) {
+    try {
+      return await readFile(join(import.meta.dirname, candidate), 'utf8');
+    } catch {
+      // Not here; try the next place.
+    }
+  }
+  return undefined;
+}
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -28,9 +45,19 @@ async function main(): Promise<void> {
           },
           maxTokens: config.llm.maxTokens,
         };
-  const server = await buildServer({ db, logLevel: config.logLevel, chat, http: config.http });
+  const widgetScript = await loadWidgetScript();
+  const server = await buildServer({
+    db,
+    logLevel: config.logLevel,
+    chat,
+    http: config.http,
+    widgetScript,
+  });
   if (chat === undefined) {
     server.log.warn('LLM_PROVIDER is not set; POST /v1/chat will answer 503');
+  }
+  if (widgetScript === undefined) {
+    server.log.warn('The widget has not been built; GET /widget.js will answer 404');
   }
 
   let stopping = false;
