@@ -154,7 +154,7 @@ The default mascot is not decoration: each thing it does reports something the A
 | It does this                                                           | When                                                         |
 | ---------------------------------------------------------------------- | ------------------------------------------------------------ |
 | Eyes and head follow the pointer; it looks down the page as you scroll | Always. With nothing to watch, it glances around on its own. |
-| Watches the text box and dips with each key                            | The customer is typing.                                      |
+| Eyes follow the text as it is typed; the body stays still              | The customer is typing.                                      |
 | Eyes sweep left to right, throat pulses                                | The question is sent and nothing has come back yet.          |
 | Jaw moves once per piece of text                                       | The answer is streaming, one `delta` at a time.              |
 | Hops                                                                   | `done` arrived and the answer stands.                        |

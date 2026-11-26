@@ -455,11 +455,10 @@ export class NeonDeskElement extends HTMLElement {
     this.input.addEventListener('input', () => {
       this.input.style.height = 'auto';
       this.input.style.height = `${String(this.input.scrollHeight + 2)}px`;
-      // The frog watches what is being typed, and dips with each key.
+      // The frog's eyes follow what is being typed. Its body stays still.
       const box = this.input.getBoundingClientRect();
       const along = Math.min(1, this.input.value.length / 40);
       this.mascot?.lookAt({ x: box.left + box.width * along, y: box.top + box.height / 2 }, 1400);
-      this.mascot?.bob();
     });
 
     this.mascotAt = null;
