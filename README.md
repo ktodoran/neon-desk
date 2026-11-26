@@ -130,46 +130,98 @@ The demo page runs the widget with the `demo` attribute, which swaps the server 
 
 Everything is an attribute, and changing one restyles the widget in place without losing the conversation.
 
-| Attribute                          | What it does                                                                            |
-| ---------------------------------- | --------------------------------------------------------------------------------------- |
-| `endpoint`                         | Where your Neon Desk server lives.                                                      |
-| `name`                             | The company name, shown in the header and the greeting.                                 |
-| `theme`                            | `dark` (default) or `light`.                                                            |
-| `accent`                           | One brand color as hex. The text on it is chosen, black or white, for contrast.         |
-| `corners`                          | `cut` (default), `round` or `square`.                                                   |
-| `font`                             | A font family already loaded on the page. The widget loads no fonts of its own.         |
-| `mascot`                           | `frog` (default), `none`, or the URL of your own image.                                 |
-| `position`                         | `bottom-right` (default) or `bottom-left`.                                              |
-| `greeting`, `placeholder`, `nudge` | Copy for the first message, the text box, and a bubble beside the closed launcher.      |
-| `suggestions`                      | Starter questions, separated by `\|`.                                                   |
-| `handoff-url`                      | Where "Contact the team" goes when a person is needed: a web, `mailto:` or `tel:` link. |
-| `demo`                             | Scripted answers, no server.                                                            |
+| Attribute                          | What it does                                                                                                                               |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `endpoint`                         | Where your Neon Desk server lives.                                                                                                         |
+| `name`                             | The company name, shown in the header and the greeting.                                                                                    |
+| `theme`                            | `dark` (default) or `light`.                                                                                                               |
+| `accent`                           | One brand color as hex. The text on it is chosen, black or white, for contrast.                                                            |
+| `corners`                          | `cut` (default), `round` or `square`.                                                                                                      |
+| `font`                             | A font family already loaded on the page. The widget loads no fonts of its own.                                                            |
+| `mascot`                           | A built-in character (`frog` by default), one you registered, the URL of your own image, or `none`. See [The characters](#the-characters). |
+| `mascot-name`                      | What the character is called, in place of its own name.                                                                                    |
+| `position`                         | `bottom-right` (default) or `bottom-left`.                                                                                                 |
+| `greeting`, `placeholder`, `nudge` | Copy for the first message, the text box, and a bubble beside the closed launcher.                                                         |
+| `suggestions`                      | Starter questions, separated by `\|`.                                                                                                      |
+| `handoff-url`                      | Where "Contact the team" goes when a person is needed: a web, `mailto:` or `tel:` link.                                                    |
+| `demo`                             | Scripted answers, no server.                                                                                                               |
 
 It also fires `neon-desk:open`, `neon-desk:close` and `neon-desk:handoff` (with the reason) on the element, so a site can open its own live chat when the assistant hands off.
 
-### The frog
+### The characters
 
-The default mascot is not decoration: each thing it does reports something the API is doing.
+<img src="docs/cast.png" alt="The seven built-in characters: a tree frog, an owl, a retriever, a fox, a robot, a tooth and a spark plug, each drawn in flat facets." width="760">
+
+Seven characters ship with the widget. Each keeps its own colors whatever the `accent` is, and each has one signal light that comes on while the assistant is working.
+
+| `mascot`     | Name   | Signal light          | Speaks with    |
+| ------------ | ------ | --------------------- | -------------- |
+| `frog`       | Pogo   | Throat                | Lower jaw      |
+| `owl`        | Sage   | Chest feathers        | Lower beak     |
+| `retriever`  | Scout  | Collar tag            | Lower jaw      |
+| `fox`        | Dash   | Ears                  | Lower jaw      |
+| `robot`      | Bit    | Strip on its forehead | The same strip |
+| `tooth`      | Pearl  | Glint                 | The same glint |
+| `spark-plug` | Sparky | Spark                 | The same spark |
+
+The name appears in the greeting, in the header while it works ("Sage is reading") and in the launcher's label for screen readers. `mascot-name` changes it.
+
+A character is not decoration: each thing it does reports something the API is doing.
 
 | It does this                                                           | When                                                         |
 | ---------------------------------------------------------------------- | ------------------------------------------------------------ |
 | Eyes and head follow the pointer; it looks down the page as you scroll | Always. With nothing to watch, it glances around on its own. |
 | Eyes follow the text as it is typed; the body stays still              | The customer is typing.                                      |
-| Eyes sweep left to right, throat pulses                                | The question is sent and nothing has come back yet.          |
-| Jaw moves once per piece of text                                       | The answer is streaming, one `delta` at a time.              |
+| Eyes sweep left to right, signal light pulses                          | The question is sent and nothing has come back yet.          |
+| Jaw moves, or the signal light flickers, once per piece of text        | The answer is streaming, one `delta` at a time.              |
 | Hops                                                                   | `done` arrived and the answer stands.                        |
 | Looks down at the handoff card                                         | `done` arrived with `escalated: true`.                       |
-| Eyes closed                                                            | The request failed.                                          |
+| Eyes closed, colors dulled                                             | The request failed.                                          |
 | Leaps between the launcher and the panel                               | The chat opens or closes.                                    |
 
-Tap it and it hops. With `prefers-reduced-motion` set, none of this moves: the frog sits still and only its throat glow shows that an answer is on the way.
+Tap it and it hops. With `prefers-reduced-motion` set, none of this moves: the character sits still and only its signal light shows that an answer is on the way.
 
-A company's own mascot image leaps and hops too. It just cannot blink.
+### A character of your own
+
+The motion is not tied to the drawings. One rig moves every character, and a drawing opts in by naming its parts, so a company can bring its own:
+
+```html
+<script src="https://support.example.com/widget.js"></script>
+<script>
+  customElements.get('neon-desk').registerCharacter({
+    id: 'leaf', // then: <neon-desk mascot="leaf">
+    name: 'Fern',
+    svg: '<svg viewBox="0 0 560 470">…</svg>',
+    look: { x: 12, y: 9 }, // how far the pupils travel, in the drawing's units
+    glow: '#3fb06a',
+  });
+</script>
+```
+
+| Class on a part | What the rig does with it                                   |
+| --------------- | ----------------------------------------------------------- |
+| `ndc-pupil`     | Slides it toward whatever the character is looking at.      |
+| `ndc-lid`       | Scales it down from the top to cover an eye.                |
+| `ndc-crease`    | Shows it only while the eyes are shut.                      |
+| `ndc-jaw`       | Drops it while the character speaks, by the `jaw` distance. |
+| `ndc-on`        | The signal light: dim at rest, bright while working.        |
+| `ndc-sig`       | Invisible at rest; appears with the signal.                 |
+| `ndc-soft`      | A faint halo around the signal light.                       |
+| `ndc-grow`      | Swells with the signal.                                     |
+
+A drawing without `jaw` speaks with its signal light. Every part is optional: a drawing that names none still leaps and hops.
+
+A registered drawing is cleaned before it is used. Only shapes, gradients, clip paths and masks are kept; scripts, embedded documents, event handlers and anything that loads from outside the drawing are removed. A definition the widget cannot use throws a `TypeError` that says why. The [demo page](examples/widget/index.html) registers one this way.
+
+A company's existing logo works too: `mascot="https://example.com/logo.svg"` leaps and hops, but an image cannot blink or look around.
+
+[Neon Toad Digital](https://neontoaddigital.com) draws characters for this rig to order.
 
 ### How it is built
 
 - **A custom element with a shadow root.** The host page's CSS cannot reach in, and the widget's cannot leak out. Checked on a page with hostile global styles (`button { border-radius: 99px !important }`), which left it untouched.
-- **No framework and no runtime dependencies.** About 13 kB gzipped.
+- **No framework and no runtime dependencies.** About 20 kB gzipped, roughly 8 of it the seven drawings.
+- **One rig, and characters are data.** Each frame the rig writes five numbers (where it is looking, how shut its eyes are, jaw, signal) as CSS custom properties, and the drawing's own part names decide what they move. Adding a character adds no logic.
 - **Everything from outside is text.** Answers, source titles and attributes are inserted as text nodes, never as markup, and only `http`, `https`, `mailto` and `tel` addresses become links. A font or color that is not a plain font list or hex color is ignored.
 - **The conversation is one value changed by one function.** What is on screen is drawn from it, and only a message that changed is redrawn, so a streamed answer does not replay animations or make a screen reader start over.
 - **It shares the server's SSE decoder**, and its transport is tested against the real server over a real socket.
@@ -272,7 +324,7 @@ src/llm/           Model interface, SSE parser, Anthropic and OpenAI clients
 src/chat/          Routing, redaction, prompts, conversation store, chat pipeline
 src/cli/           migrate and ingest commands
 src/server.ts      HTTP server
-widget/            The <neon-desk> element: frog, conversation state, transport, styles
+widget/            The <neon-desk> element: characters, the rig that moves them, conversation state, transport, styles
 evals/             Evaluation cases, harness and report
 test/              Unit and integration tests
 examples/knowledge Sample documents
