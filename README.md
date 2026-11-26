@@ -2,7 +2,7 @@
 
 A retrieval-grounded customer support assistant any company can embed. It answers from the company's own documents, shows which ones it used, and hands off to a person when it should not answer.
 
-> **Status: under construction.** The knowledge base, retrieval, chat API, guardrails and evaluation harness are built and tested. The evaluation has not yet been run against a live model, and the embeddable widget is not built. See [Roadmap](#roadmap) and [Known limits](#known-limits).
+> **Status: under construction.** The knowledge base, retrieval, chat API, guardrails, evaluation harness and embeddable widget are built and tested. The evaluation has not yet been run against a live model. See [Roadmap](#roadmap) and [Known limits](#known-limits).
 
 ## What works today
 
@@ -15,6 +15,7 @@ A retrieval-grounded customer support assistant any company can embed. It answer
 - **Card numbers removed on arrival.** A pasted card number is redacted before the model, the database or the logs see it.
 - **API protection.** An origin allowlist, per-client rate limiting on the chat route, and a request size limit.
 - **An evaluation harness** with 38 cases covering answerable questions, questions the knowledge base cannot answer, requests to act, follow-ups and injection attempts.
+- **An embeddable widget.** One script tag and a `<neon-desk>` element put the assistant on any site, restyled by attributes. See [The widget](#the-widget).
 - **Anthropic and OpenAI-compatible models** behind one small interface.
 - **Tests that run against a real Postgres**, in process, with no Docker.
 
@@ -104,6 +105,76 @@ TRUST_PROXY=true    # only behind a proxy you control
 
 With `ALLOWED_ORIGINS` empty, no cross-origin browser request is allowed.
 
+## The widget
+
+<img src="docs/widget-demo.gif" alt="The widget on a page: the frog's eyes follow the pointer, it leaps onto the chat panel when the chat opens, its throat glows while it searches, and it hops when the answer arrives." width="380">
+
+The server hosts the widget at `/widget.js`, so a site needs one address for the script and the API:
+
+```html
+<script src="https://support.example.com/widget.js" defer></script>
+<neon-desk endpoint="https://support.example.com" name="Acme Outfitters"></neon-desk>
+```
+
+Add the site's origin to `ALLOWED_ORIGINS` and that is the whole installation.
+
+### Try it without a server
+
+```bash
+npm run demo    # http://127.0.0.1:8000
+```
+
+The demo page runs the widget with the `demo` attribute, which swaps the server for a few scripted answers taken from `examples/knowledge`. It follows the same rules as the real assistant: answer and cite, refuse to act, hand off when asked or when nothing matches. The footer says "demo mode" whenever it is on.
+
+### Settings
+
+Everything is an attribute, and changing one restyles the widget in place without losing the conversation.
+
+| Attribute                          | What it does                                                                            |
+| ---------------------------------- | --------------------------------------------------------------------------------------- |
+| `endpoint`                         | Where your Neon Desk server lives.                                                      |
+| `name`                             | The company name, shown in the header and the greeting.                                 |
+| `theme`                            | `dark` (default) or `light`.                                                            |
+| `accent`                           | One brand color as hex. The text on it is chosen, black or white, for contrast.         |
+| `corners`                          | `cut` (default), `round` or `square`.                                                   |
+| `font`                             | A font family already loaded on the page. The widget loads no fonts of its own.         |
+| `mascot`                           | `frog` (default), `none`, or the URL of your own image.                                 |
+| `position`                         | `bottom-right` (default) or `bottom-left`.                                              |
+| `greeting`, `placeholder`, `nudge` | Copy for the first message, the text box, and a bubble beside the closed launcher.      |
+| `suggestions`                      | Starter questions, separated by `\|`.                                                   |
+| `handoff-url`                      | Where "Contact the team" goes when a person is needed: a web, `mailto:` or `tel:` link. |
+| `demo`                             | Scripted answers, no server.                                                            |
+
+It also fires `neon-desk:open`, `neon-desk:close` and `neon-desk:handoff` (with the reason) on the element, so a site can open its own live chat when the assistant hands off.
+
+### The frog
+
+The default mascot is not decoration: each thing it does reports something the API is doing.
+
+| It does this                                                           | When                                                         |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Eyes and head follow the pointer; it looks down the page as you scroll | Always. With nothing to watch, it glances around on its own. |
+| Watches the text box and dips with each key                            | The customer is typing.                                      |
+| Eyes sweep left to right, throat pulses                                | The question is sent and nothing has come back yet.          |
+| Jaw moves once per piece of text                                       | The answer is streaming, one `delta` at a time.              |
+| Hops                                                                   | `done` arrived and the answer stands.                        |
+| Looks down at the handoff card                                         | `done` arrived with `escalated: true`.                       |
+| Eyes closed                                                            | The request failed.                                          |
+| Leaps between the launcher and the panel                               | The chat opens or closes.                                    |
+
+Tap it and it hops. With `prefers-reduced-motion` set, none of this moves: the frog sits still and only its throat glow shows that an answer is on the way.
+
+A company's own mascot image leaps and hops too. It just cannot blink.
+
+### How it is built
+
+- **A custom element with a shadow root.** The host page's CSS cannot reach in, and the widget's cannot leak out. Checked on a page with hostile global styles (`button { border-radius: 99px !important }`), which left it untouched.
+- **No framework and no runtime dependencies.** About 13 kB gzipped.
+- **Everything from outside is text.** Answers, source titles and attributes are inserted as text nodes, never as markup, and only `http`, `https`, `mailto` and `tel` addresses become links. A font or color that is not a plain font list or hex color is ignored.
+- **The conversation is one value changed by one function.** What is on screen is drawn from it, and only a message that changed is redrawn, so a streamed answer does not replay animations or make a screen reader start over.
+- **It shares the server's SSE decoder**, and its transport is tested against the real server over a real socket.
+- **Keyboard and screen reader.** The launcher and panel are labelled, focus moves into the chat on open and back to the launcher on close, Escape closes, and the message list is a live region that waits for a complete answer.
+
 ## Evaluation
 
 ```bash
@@ -130,6 +201,7 @@ npm run typecheck
 npm run lint
 npm test
 npm run format:check
+npm run build
 ```
 
 ## Design decisions
@@ -185,6 +257,9 @@ npm run format:check
 - **There is no per-user authentication.** The API identifies callers by network address only.
 - **Model calls are not retried.**
 - **Only card numbers are redacted.** Other personal data in a message is stored as written.
+- **The widget forgets on reload.** The server keeps the conversation, but the widget does not restore it after the page is refreshed.
+- **The widget is English only**, and renders answers as plain text: Markdown in an answer is shown as written.
+- **The widget's motion was checked in Chrome.** The logic is unit tested, but there is no automated browser test, and Safari and Firefox have not been checked.
 
 ## Layout
 
@@ -197,9 +272,11 @@ src/llm/           Model interface, SSE parser, Anthropic and OpenAI clients
 src/chat/          Routing, redaction, prompts, conversation store, chat pipeline
 src/cli/           migrate and ingest commands
 src/server.ts      HTTP server
+widget/            The <neon-desk> element: frog, conversation state, transport, styles
 evals/             Evaluation cases, harness and report
 test/              Unit and integration tests
 examples/knowledge Sample documents
+examples/widget    Demo page for the widget
 ```
 
 ## Roadmap
@@ -207,7 +284,8 @@ examples/knowledge Sample documents
 1. **Foundation** — done.
 2. **Retrieval and chat** — done.
 3. **Guardrails and evaluation** — built. Remaining: run the evaluation against a live model and publish the results.
-4. **Embeddable widget and deployment** — a script-tag widget, a Shopify example, and an AWS deployment guide.
+4. **Embeddable widget** — done.
+5. **Deployment** — a Shopify example and an AWS deployment guide.
 
 ## License
 
