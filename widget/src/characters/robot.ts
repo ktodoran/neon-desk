@@ -12,4 +12,5 @@ export const ROBOT: Character = {
   svg: SVG,
   look: { x: 20, y: 12 },
   glow: 'rgb(92 200 255 / 0.4)',
+  plate: { ground: '#0b1524', edge: ['#5cc8ff', '#a4b2c6'] },
 };

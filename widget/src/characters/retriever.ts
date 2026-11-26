@@ -12,4 +12,5 @@ export const RETRIEVER: Character = {
   look: { x: 15, y: 12 },
   jaw: 20,
   glow: 'rgb(233 180 80 / 0.4)',
+  plate: { ground: '#0f2a1f', edge: ['#f4c430', '#b6761e'] },
 };

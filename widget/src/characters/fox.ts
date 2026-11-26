@@ -12,4 +12,5 @@ export const FOX: Character = {
   look: { x: 20, y: 12 },
   jaw: 16,
   glow: 'rgb(238 125 48 / 0.42)',
+  plate: { ground: '#1d1210', edge: ['#ee7d30', '#f7efe1'] },
 };

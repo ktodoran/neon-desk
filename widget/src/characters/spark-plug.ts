@@ -12,4 +12,5 @@ export const SPARK_PLUG: Character = {
   svg: SVG,
   look: { x: 11, y: 9 },
   glow: 'rgb(255 214 10 / 0.4)',
+  plate: { ground: '#16191e', edge: ['#d92d25', '#ffd60a'] },
 };

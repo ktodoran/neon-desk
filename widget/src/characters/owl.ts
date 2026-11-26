@@ -12,4 +12,5 @@ export const OWL: Character = {
   look: { x: 22, y: 18 },
   jaw: 16,
   glow: 'rgb(95 118 222 / 0.5)',
+  plate: { ground: '#10173d', edge: ['#f5b301', '#5f76de'] },
 };

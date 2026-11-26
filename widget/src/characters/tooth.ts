@@ -12,4 +12,5 @@ export const TOOTH: Character = {
   svg: SVG,
   look: { x: 14, y: 10 },
   glow: 'rgb(23 184 166 / 0.38)',
+  plate: { ground: '#0a3338', edge: ['#17b8a6', '#d5e6ef'] },
 };

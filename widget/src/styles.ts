@@ -73,7 +73,7 @@ button { cursor: pointer; }
   margin-left: auto;
   padding: 1.5px;
   border: 0;
-  background: var(--nd-edge);
+  background: var(--nd-plate-edge, var(--nd-edge));
   filter: drop-shadow(0 6px 16px rgb(0 0 0 / 0.35));
   transition: transform 0.18s cubic-bezier(0.34, 1.4, 0.64, 1);
 }
@@ -85,12 +85,28 @@ button { cursor: pointer; }
   place-items: center;
   width: 100%;
   height: 100%;
-  background: var(--nd-bg);
-  color: var(--nd-muted);
+  background: var(--nd-plate, var(--nd-bg));
+  color: var(--nd-plate-ink, var(--nd-muted));
 }
+/* A character's plate keeps its own colors on any site, with a little light from above. */
+.nd[data-plate] .nd-launcher-face {
+  background:
+    radial-gradient(circle at 50% 28%, rgb(255 255 255 / 0.09), transparent 68%),
+    var(--nd-plate);
+}
+/* With no character, the launcher is the brand color and says what it is. */
+.nd:not([data-mascot]) .nd-launcher { background: var(--nd-accent); }
+.nd:not([data-mascot]) .nd-launcher-face {
+  background:
+    linear-gradient(155deg, rgb(255 255 255 / 0.2), transparent 52%),
+    var(--nd-accent);
+  color: var(--nd-on-accent);
+}
+.nd:not([data-mascot]) .nd-slot { display: none; }
 .nd-slot { width: 58px; aspect-ratio: 560 / 480; }
 .nd-launcher svg { display: none; }
-.nd[data-open] .nd-launcher svg { display: block; }
+.nd[data-open] .nd-launcher .nd-icon-close { display: block; }
+.nd:not([data-mascot], [data-open]) .nd-launcher .nd-icon-chat { display: block; }
 .nd[data-open] .nd-launcher .nd-slot { display: none; }
 
 .nd-nudge {

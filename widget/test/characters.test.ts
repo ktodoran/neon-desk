@@ -8,6 +8,7 @@ import {
   type Character,
 } from '../src/characters/index.js';
 import { NeonDeskElement } from '../src/element.js';
+import { luminance, parseHexColor } from '../src/theme.js';
 
 if (customElements.get('neon-desk') === undefined) {
   customElements.define('neon-desk', NeonDeskElement);
@@ -67,6 +68,15 @@ describe('the built-in characters', () => {
     expect(draw(cleaned ?? '').querySelectorAll('*')).toHaveLength(
       draw(svg).querySelectorAll('*').length,
     );
+  });
+
+  it.each(BUILT_IN)('%s has a plate dark enough to carry it', (id) => {
+    const plate = findCharacter(id)?.plate;
+    const ground = parseHexColor(plate?.ground ?? null);
+
+    expect(ground).not.toBeNull();
+    expect(luminance(ground ?? [255, 255, 255])).toBeLessThan(0.05);
+    expect(plate?.edge.map((colour) => parseHexColor(colour) !== null)).toEqual([true, true]);
   });
 
   it('a character with a mouth says so, and one without speaks with its light', () => {
@@ -132,6 +142,7 @@ describe('registering a character', () => {
     ['a reach that is not a distance', { look: { x: Number.NaN, y: 2 } }],
     ['a negative jaw', { jaw: -4 }],
     ['a glow that is not a colour', { glow: 'red; background: url(x)' }],
+    ['a plate that is not hex colours', { plate: { ground: 'navy', edge: ['#fff', '#000'] } }],
     ['markup that is not a drawing', { svg: '<p>hello</p>' }],
   ])('refuses %s', (_what, change) => {
     expect(() => registerCharacter({ ...LEAF, id: 'refused', ...change })).toThrow(TypeError);
@@ -152,6 +163,36 @@ describe('<neon-desk> with a character', () => {
     expect(root.querySelector('.nd-launcher')?.getAttribute('aria-label')).toBe(
       'Open chat with Sage',
     );
+  });
+
+  it('puts a character on its own plate, whatever the site’s theme is', () => {
+    const widget = mount({ mascot: 'owl', theme: 'light', accent: '#0b7f8c' });
+    const frame = shadow(widget).querySelector<HTMLElement>('.nd');
+
+    expect(frame?.hasAttribute('data-plate')).toBe(true);
+    expect(frame?.style.getPropertyValue('--nd-plate')).toBe('#10173d');
+    expect(frame?.style.getPropertyValue('--nd-plate-edge')).toBe(
+      'linear-gradient(135deg, #f5b301, #5f76de)',
+    );
+    expect(frame?.style.getPropertyValue('--nd-plate-ink')).toBe('#ffffff');
+  });
+
+  it('leaves the launcher to the theme for a character with no plate, or an image', () => {
+    registerCharacter({ ...LEAF, id: 'plain-leaf' });
+    const unplated = shadow(mount({ mascot: 'plain-leaf' })).querySelector('.nd');
+    const image = shadow(mount({ mascot: 'https://example.com/logo.svg' })).querySelector('.nd');
+
+    expect(unplated?.hasAttribute('data-plate')).toBe(false);
+    expect(image?.hasAttribute('data-plate')).toBe(false);
+  });
+
+  it('shows a chat icon in the launcher when there is no mascot', () => {
+    const none = shadow(mount({ mascot: 'none' }));
+    const owl = shadow(mount({ mascot: 'owl' }));
+
+    expect(none.querySelector('.nd')?.hasAttribute('data-mascot')).toBe(false);
+    expect(none.querySelector('.nd-launcher .nd-icon-chat')).not.toBeNull();
+    expect(owl.querySelector('.nd')?.hasAttribute('data-mascot')).toBe(true);
   });
 
   it('marks a character that has no mouth, so its light speaks for it', () => {

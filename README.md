@@ -152,7 +152,7 @@ It also fires `neon-desk:open`, `neon-desk:close` and `neon-desk:handoff` (with 
 
 <img src="docs/cast.png" alt="The seven built-in characters: a tree frog, an owl, a retriever, a fox, a robot, a tooth and a spark plug, each drawn in flat facets." width="760">
 
-Seven characters ship with the widget. Each keeps its own colors whatever the `accent` is, and each has one signal light that comes on while the assistant is working.
+Seven characters ship with the widget. Each keeps its own colors whatever the `accent` is, sits on a plate in those colors in the launcher, and has one signal light that comes on while the assistant is working.
 
 | `mascot`     | Name   | Signal light          | Speaks with    |
 | ------------ | ------ | --------------------- | -------------- |
@@ -194,6 +194,7 @@ The motion is not tied to the drawings. One rig moves every character, and a dra
     svg: '<svg viewBox="0 0 560 470">…</svg>',
     look: { x: 12, y: 9 }, // how far the pupils travel, in the drawing's units
     glow: '#3fb06a',
+    plate: { ground: '#0f2418', edge: ['#49bf75', '#ffd60a'] }, // its launcher
   });
 </script>
 ```
@@ -213,7 +214,7 @@ A drawing without `jaw` speaks with its signal light. Every part is optional: a 
 
 A registered drawing is cleaned before it is used. Only shapes, gradients, clip paths and masks are kept; scripts, embedded documents, event handlers and anything that loads from outside the drawing are removed. A definition the widget cannot use throws a `TypeError` that says why. The [demo page](examples/widget/index.html) registers one this way.
 
-A company's existing logo works too: `mascot="https://example.com/logo.svg"` leaps and hops, but an image cannot blink or look around.
+A company's existing logo works too: `mascot="https://example.com/logo.svg"` leaps and hops, but an image cannot blink or look around. With `mascot="none"` the launcher is a chat icon on the accent color.
 
 [Neon Toad Digital](https://neontoaddigital.com) draws characters for this rig to order.
 

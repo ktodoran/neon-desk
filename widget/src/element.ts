@@ -15,7 +15,7 @@ import {
 } from './characters/index.js';
 import { Rig, type Mood, type Point } from './rig.js';
 import { STYLES } from './styles.js';
-import { readTheme, themeVariables } from './theme.js';
+import { parseHexColor, readTheme, textOn, themeVariables } from './theme.js';
 import { createHttpTransport, type Transport } from './transport.js';
 
 const ATTRIBUTES = [
@@ -54,7 +54,8 @@ const HANDOFFS: Record<EscalationReason, { title: string; body: string }> = {
 
 const ICONS = {
   close:
-    '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7l5 5 5-5"/></svg>',
+    '<svg class="nd-icon-close" aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7l5 5 5-5"/></svg>',
+  chat: '<svg class="nd-icon-chat" aria-hidden="true" width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8.5A2.5 2.5 0 0 1 8.5 6h15A2.5 2.5 0 0 1 26 8.5v10a2.5 2.5 0 0 1-2.5 2.5H15l-5.5 4.5V21h-1A2.5 2.5 0 0 1 6 18.5z"/><path d="M11.5 11.5h9M11.5 15.5h5.5"/></svg>',
   send: '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14V4M4.5 8.5 9 4l4.5 4.5"/></svg>',
 };
 
@@ -447,7 +448,9 @@ export class NeonDeskElement extends HTMLElement {
       },
       h('span', { class: 'nd-launcher-face nd-cut' }, h('span', { class: 'nd-slot' })),
     );
-    this.launcher.querySelector('.nd-launcher-face')?.insertAdjacentHTML('beforeend', ICONS.close);
+    this.launcher
+      .querySelector('.nd-launcher-face')
+      ?.insertAdjacentHTML('beforeend', ICONS.chat + ICONS.close);
 
     this.frame = h(
       'div',
@@ -460,6 +463,17 @@ export class NeonDeskElement extends HTMLElement {
       this.mascot.element.classList.add('nd-mascot');
       this.frame.toggleAttribute('data-mascot', true);
       this.frame.append(this.mascot.element);
+      const plate = character?.plate;
+      const ground = parseHexColor(plate?.ground ?? null);
+      if (plate !== undefined && ground !== null) {
+        this.frame.toggleAttribute('data-plate', true);
+        this.frame.style.setProperty('--nd-plate', plate.ground);
+        this.frame.style.setProperty(
+          '--nd-plate-edge',
+          `linear-gradient(135deg, ${plate.edge[0]}, ${plate.edge[1]})`,
+        );
+        this.frame.style.setProperty('--nd-plate-ink', textOn(ground));
+      }
     }
 
     // The host's own inline styles stay untouched; ours go on the wrapper.

@@ -5,6 +5,7 @@ import { RETRIEVER } from './retriever.js';
 import { ROBOT } from './robot.js';
 import { SPARK_PLUG } from './spark-plug.js';
 import { TOOTH } from './tooth.js';
+import { parseHexColor } from '../theme.js';
 
 /**
  * A character the rig can move. The drawing marks its moving parts with class
@@ -32,6 +33,11 @@ export interface Character {
   readonly jaw?: number;
   /** The colour of the glow around it. */
   readonly glow?: string;
+  /**
+   * The plate it sits on in the launcher: a ground, and the two colours its edge
+   * runs between. Without one, the launcher takes the widget's theme.
+   */
+  readonly plate?: { readonly ground: string; readonly edge: readonly [string, string] };
 }
 
 const BUILT_IN: readonly Character[] = [FROG, OWL, RETRIEVER, FOX, ROBOT, TOOTH, SPARK_PLUG];
@@ -108,6 +114,8 @@ export function isCharacterId(value: string): boolean {
   return ID.test(value);
 }
 const COLOUR = /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,/%]+\))$/i;
+const isHex = (value: unknown): boolean =>
+  typeof value === 'string' && parseHexColor(value) !== null;
 const isDistance = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 500;
 
@@ -117,7 +125,7 @@ const isDistance = (value: unknown): value is number =>
  * it cannot use.
  */
 export function registerCharacter(character: Character): Character {
-  const { id, name, look, jaw, glow } = character;
+  const { id, name, look, jaw, glow, plate } = character;
   if (typeof id !== 'string' || !ID.test(id)) {
     throw new TypeError('A character id is lowercase letters, digits and hyphens.');
   }
@@ -136,6 +144,9 @@ export function registerCharacter(character: Character): Character {
   if (glow !== undefined && !COLOUR.test(glow)) {
     throw new TypeError('glow is a hex or rgb() colour.');
   }
+  if (plate !== undefined && ![plate.ground, ...plate.edge].every(isHex)) {
+    throw new TypeError('plate.ground and both plate.edge colours are hex colours.');
+  }
   const svg = typeof character.svg === 'string' ? sanitizeSvg(character.svg) : null;
   if (svg === null) throw new TypeError('A character needs one well-formed <svg>.');
 
@@ -146,6 +157,9 @@ export function registerCharacter(character: Character): Character {
     ...(look === undefined ? {} : { look: { x: look.x, y: look.y } }),
     ...(jaw === undefined ? {} : { jaw }),
     ...(glow === undefined ? {} : { glow }),
+    ...(plate === undefined
+      ? {}
+      : { plate: { ground: plate.ground, edge: [plate.edge[0], plate.edge[1]] } }),
   };
   registry.set(id, registered);
   return registered;
