@@ -2,6 +2,8 @@
 
 A retrieval-grounded customer support assistant any company can embed. It answers from the company's own documents, shows which ones it used, and hands off to a person when it should not answer.
 
+**[Try the widget](https://ktodoran.github.io/neon-desk/)** in demo mode: scripted answers from the example help pages, no server and no model behind it.
+
 > **Status: under construction.** The knowledge base, retrieval, chat API, guardrails, evaluation harness and embeddable widget are built and tested. The evaluation has not yet been run against a live model. See [Roadmap](#roadmap) and [Known limits](#known-limits).
 
 ## What works today
@@ -119,6 +121,8 @@ The server hosts the widget at `/widget.js`, so a site needs one address for the
 Add the site's origin to `ALLOWED_ORIGINS` and that is the whole installation.
 
 ### Try it without a server
+
+The [demo page](https://ktodoran.github.io/neon-desk/) is published from this repository on every change to the widget. To run it locally:
 
 ```bash
 npm run demo    # http://127.0.0.1:8000
