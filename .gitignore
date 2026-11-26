@@ -2,6 +2,9 @@ node_modules/
 dist/
 coverage/
 
+# The demo page's copy of the widget, built by `npm run demo` and by the demo workflow.
+examples/widget/neon-desk.js
+
 # Local configuration. Copy .env.example to .env and fill it in.
 .env
 .env.*

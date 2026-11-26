@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Neon Desk widget demo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700&family=Fraunces:wght@600&family=Inter:wght@400;500;600&family=Nunito:wght@400;600;800&family=Sora:wght@600;800&display=swap"
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: #050505;
+        color: #f5f7fa;
+        font:
+          400 17px/1.6 Inter,
+          system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 44rem;
+        padding: clamp(2rem, 6vw, 5rem) clamp(1.25rem, 4vw, 3rem) 12rem;
+      }
+      h1 {
+        margin: 0 0 1rem;
+        font:
+          800 clamp(2rem, 5vw, 3.25rem) / 1.1 Sora,
+          sans-serif;
+        letter-spacing: -0.02em;
+      }
+      p {
+        margin: 0 0 1rem;
+        color: #b3bbc3;
+      }
+      h2 {
+        margin: 3rem 0 0.75rem;
+        font:
+          600 1.125rem Sora,
+          sans-serif;
+      }
+      .themes {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      button {
+        min-height: 44px;
+        padding: 0 1rem;
+        border: 1px solid rgb(245 247 250 / 0.24);
+        background: none;
+        color: inherit;
+        font: inherit;
+        font-size: 0.9375rem;
+        cursor: pointer;
+      }
+      button[aria-pressed='true'] {
+        border-color: #b7ff1a;
+        color: #b7ff1a;
+      }
+      button:focus-visible {
+        outline: 2px solid #00e5ff;
+        outline-offset: 2px;
+      }
+      code {
+        font:
+          0.875em ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+        color: #b7ff1a;
+      }
+      pre {
+        margin: 0;
+        padding: 1rem;
+        overflow-x: auto;
+        border: 1px solid rgb(245 247 250 / 0.14);
+        background: #0a0c0d;
+        font:
+          0.8125rem/1.7 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+        color: #b3bbc3;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Neon Desk widget</h1>
+      <p>
+        The chat in the corner is the widget. This page runs it in demo mode: the answers are
+        scripted from the example help pages in the repository, so it works without a server or a
+        model.
+      </p>
+      <p>
+        Move the pointer around, type something, or tap the frog. Try asking about returns or
+        shipping, asking for a person, or asking something the help pages don’t cover.
+      </p>
+
+      <h2>The same widget for another company</h2>
+      <ul class="themes">
+        <li><button type="button" data-theme="neon" aria-pressed="true">Neon Desk</button></li>
+        <li>
+          <button type="button" data-theme="dental" aria-pressed="false">Dental practice</button>
+        </li>
+        <li>
+          <button type="button" data-theme="auto" aria-pressed="false">Auto repair shop</button>
+        </li>
+        <li><button type="button" data-theme="books" aria-pressed="false">Bookshop</button></li>
+      </ul>
+
+      <h2>What this page’s widget is set to</h2>
+      <pre id="markup"></pre>
+    </main>
+
+    <neon-desk
+      demo
+      name="Acme Outfitters"
+      suggestions="What’s your return policy?|How long does shipping take?|I’d like to talk to a person"
+      placeholder="Ask about orders, shipping, returns"
+      nudge="Questions about your order? Ask the frog."
+      handoff-url="mailto:support@example.com"
+    ></neon-desk>
+
+    <script src="neon-desk.js"></script>
+    <script>
+      const shared = {
+        demo: '',
+        suggestions:
+          'What’s your return policy?|How long does shipping take?|I’d like to talk to a person',
+        'handoff-url': 'mailto:support@example.com',
+      };
+      const themes = {
+        neon: {
+          name: 'Acme Outfitters',
+          placeholder: 'Ask about orders, shipping, returns',
+          nudge: 'Questions about your order? Ask the frog.',
+        },
+        dental: {
+          name: 'Harbor Dental',
+          theme: 'light',
+          accent: '#0b7f8c',
+          corners: 'round',
+          font: 'Nunito, sans-serif',
+          mascot: 'tooth.svg',
+        },
+        auto: {
+          name: 'Ironworks Auto',
+          accent: '#ff7a1a',
+          corners: 'square',
+          font: 'Inter, sans-serif',
+          mascot: 'bolt.svg',
+        },
+        books: {
+          name: 'Juniper Books',
+          theme: 'light',
+          accent: '#1f5c3f',
+          corners: 'round',
+          font: 'Inter, sans-serif',
+          mascot: 'leaf.svg',
+        },
+      };
+      const widget = document.querySelector('neon-desk');
+      const markup = document.getElementById('markup');
+
+      function show(key) {
+        const attributes = { ...shared, ...themes[key] };
+        for (const name of widget.getAttributeNames()) widget.removeAttribute(name);
+        for (const [name, value] of Object.entries(attributes)) widget.setAttribute(name, value);
+        const lines = Object.entries(attributes).map(([name, value]) =>
+          value === '' ? `  ${name}` : `  ${name}="${value}"`,
+        );
+        markup.textContent = `<neon-desk\n${lines.join('\n')}\n></neon-desk>`;
+        for (const button of document.querySelectorAll('[data-theme]')) {
+          button.setAttribute('aria-pressed', String(button.dataset.theme === key));
+        }
+      }
+
+      for (const button of document.querySelectorAll('[data-theme]')) {
+        button.addEventListener('click', () => show(button.dataset.theme));
+      }
+      show('neon');
+    </script>
+  </body>
+</html>
