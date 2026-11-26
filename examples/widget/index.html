@@ -44,6 +44,9 @@
           600 1.125rem Sora,
           sans-serif;
       }
+      main a {
+        color: #b7ff1a;
+      }
       .themes {
         display: flex;
         flex-wrap: wrap;
@@ -102,24 +105,40 @@
         model.
       </p>
       <p>
-        Move the pointer around, type something, or tap the frog. Try asking about returns or
+        Move the pointer around, type something, or tap the character. Try asking about returns or
         shipping, asking for a person, or asking something the help pages don’t cover.
       </p>
 
       <h2>The same widget for another company</h2>
       <ul class="themes">
-        <li><button type="button" data-theme="neon" aria-pressed="true">Neon Desk</button></li>
-        <li>
-          <button type="button" data-theme="dental" aria-pressed="false">Dental practice</button>
-        </li>
-        <li>
-          <button type="button" data-theme="auto" aria-pressed="false">Auto repair shop</button>
-        </li>
+        <li><button type="button" data-theme="neon" aria-pressed="true">Outdoor shop</button></li>
+        <li><button type="button" data-theme="law" aria-pressed="false">Law firm</button></li>
+        <li><button type="button" data-theme="home" aria-pressed="false">Plumber</button></li>
         <li><button type="button" data-theme="books" aria-pressed="false">Bookshop</button></li>
+        <li><button type="button" data-theme="software" aria-pressed="false">Software</button></li>
+        <li><button type="button" data-theme="dental" aria-pressed="false">Dentist</button></li>
+        <li><button type="button" data-theme="auto" aria-pressed="false">Auto repair</button></li>
+        <li>
+          <button type="button" data-theme="garden" aria-pressed="false">
+            Their own character
+          </button>
+        </li>
+        <li>
+          <button type="button" data-theme="logo" aria-pressed="false">Their own logo</button>
+        </li>
+        <li><button type="button" data-theme="plain" aria-pressed="false">No character</button></li>
       </ul>
 
       <h2>What this page’s widget is set to</h2>
       <pre id="markup"></pre>
+
+      <h2>A character of your own</h2>
+      <p>
+        Any drawing that names its moving parts gets the same motion as the built-in characters. The
+        garden centre’s leaf is not part of the widget: this page registers it, and the source of
+        this page shows how. Custom characters are drawn to order by
+        <a href="https://neontoaddigital.com">Neon Toad Digital</a>.
+      </p>
     </main>
 
     <neon-desk
@@ -127,12 +146,38 @@
       name="Acme Outfitters"
       suggestions="What’s your return policy?|How long does shipping take?|I’d like to talk to a person"
       placeholder="Ask about orders, shipping, returns"
-      nudge="Questions about your order? Ask the frog."
+      nudge="Questions about your order? Ask Pogo."
       handoff-url="mailto:support@example.com"
     ></neon-desk>
 
     <script src="neon-desk.js"></script>
     <script>
+      // A character the widget does not ship with. The class names tell the rig
+      // which parts are eyes, lids and the signal light; the README lists them.
+      customElements.get('neon-desk').registerCharacter({
+        id: 'leaf',
+        name: 'Fern',
+        look: { x: 12, y: 9 },
+        glow: 'rgb(63 176 106 / 0.45)',
+        svg: `<svg viewBox="0 0 560 470" xmlns="http://www.w3.org/2000/svg">
+          <polygon fill="#1f7a46" points="280,16 132,190 150,330 280,440"/>
+          <polygon fill="#2f9e5b" points="280,16 428,190 410,330 280,440"/>
+          <polygon fill="#2a8f52" points="280,16 132,190 230,150"/>
+          <polygon fill="#49bf75" points="280,16 428,190 330,150"/>
+          <path d="M280 60 L280 440" stroke="#14532f" stroke-width="6" fill="none"/>
+          <path d="M280 440 L280 466" stroke="#14532f" stroke-width="14" stroke-linecap="round" fill="none"/>
+          <g class="ndc-pupil">
+            <rect x="226" y="208" width="20" height="46" rx="10" fill="#0c2a18"/>
+            <rect x="314" y="208" width="20" height="46" rx="10" fill="#0c2a18"/>
+          </g>
+          <rect class="ndc-lid" x="212" y="194" width="48" height="74" fill="#1f7a46"/>
+          <rect class="ndc-lid" x="300" y="194" width="48" height="74" fill="#2f9e5b"/>
+          <path class="ndc-crease" d="M221 248 L251 248 M309 248 L339 248" stroke="#0c2a18" stroke-width="6" stroke-linecap="round" fill="none"/>
+          <polygon class="ndc-soft" fill="#ffd60a" points="438,40 470,90 438,140 406,90"/>
+          <polygon class="ndc-on" fill="#ffd60a" points="438,62 456,90 438,118 420,90"/>
+        </svg>`,
+      });
+
       const shared = {
         demo: '',
         suggestions:
@@ -143,7 +188,36 @@
         neon: {
           name: 'Acme Outfitters',
           placeholder: 'Ask about orders, shipping, returns',
-          nudge: 'Questions about your order? Ask the frog.',
+          nudge: 'Questions about your order? Ask Pogo.',
+        },
+        law: {
+          name: 'Hale & Ward',
+          theme: 'light',
+          accent: '#2f43a0',
+          corners: 'square',
+          font: 'Inter, sans-serif',
+          mascot: 'owl',
+        },
+        home: {
+          name: 'Northside Plumbing',
+          accent: '#e9b450',
+          corners: 'round',
+          font: 'Inter, sans-serif',
+          mascot: 'retriever',
+        },
+        books: {
+          name: 'Juniper Books',
+          theme: 'light',
+          accent: '#bd4c0e',
+          corners: 'round',
+          font: 'Inter, sans-serif',
+          mascot: 'fox',
+        },
+        software: {
+          name: 'Stackline',
+          accent: '#5cc8ff',
+          font: 'Inter, sans-serif',
+          mascot: 'robot',
         },
         dental: {
           name: 'Harbor Dental',
@@ -151,22 +225,37 @@
           accent: '#0b7f8c',
           corners: 'round',
           font: 'Nunito, sans-serif',
-          mascot: 'tooth.svg',
+          mascot: 'tooth',
         },
         auto: {
           name: 'Ironworks Auto',
           accent: '#ff7a1a',
           corners: 'square',
           font: 'Inter, sans-serif',
-          mascot: 'bolt.svg',
+          mascot: 'spark-plug',
         },
-        books: {
-          name: 'Juniper Books',
+        garden: {
+          name: 'Fernhill Garden Centre',
           theme: 'light',
           accent: '#1f5c3f',
           corners: 'round',
           font: 'Inter, sans-serif',
-          mascot: 'leaf.svg',
+          mascot: 'leaf',
+        },
+        logo: {
+          name: 'Voltline Electric',
+          accent: '#ffd60a',
+          corners: 'square',
+          font: 'Inter, sans-serif',
+          mascot: 'bolt.svg',
+        },
+        plain: {
+          name: 'Marlow & Finch',
+          theme: 'light',
+          accent: '#3a4558',
+          corners: 'square',
+          font: 'Inter, sans-serif',
+          mascot: 'none',
         },
       };
       const widget = document.querySelector('neon-desk');
@@ -188,7 +277,8 @@
       for (const button of document.querySelectorAll('[data-theme]')) {
         button.addEventListener('click', () => show(button.dataset.theme));
       }
-      show('neon');
+      const asked = new URLSearchParams(location.search).get('company');
+      show(asked !== null && Object.hasOwn(themes, asked) ? asked : 'neon');
     </script>
   </body>
 </html>
