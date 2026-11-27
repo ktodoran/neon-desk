@@ -4,6 +4,7 @@
 - Embedding model: `qwen3-embedding:0.6b`
 - Chat model: `gemma4:12b`
 - Knowledge base: 4 documents
+- Passages given to the model for each answer: 3
 
 ## Retrieval
 
