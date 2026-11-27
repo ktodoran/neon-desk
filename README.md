@@ -79,11 +79,23 @@ EMBEDDINGS_BASE_URL=http://localhost:11434/v1
 EMBEDDINGS_API_KEY=ollama
 EMBEDDINGS_MODEL=qwen3-embedding:0.6b
 EMBEDDINGS_DIMENSIONS=1024         # the model's own width, padded to the stored 1536
+
+RAG_TOP_K=3                        # three passages per answer instead of five: less for the model to read
 ```
 
 The [evaluation](#evaluation) below was run with exactly these settings, on Ollama 0.40.18. A conversation through the HTTP server and the widget was also checked by hand with them: an answer with its sources, a request to act, and a question the help pages do not cover. Re-ingest after changing the embedding model: documents are re-embedded when the model's name changes.
 
 <img src="docs/widget-local-model.png" alt="The widget showing an answer written by the local model: standard shipping takes 5 to 7 business days, with two source markers and the two documents it came from listed below." width="380">
+
+**How fast it is.** On a MacBook Pro with an M4 Max and 48 GB, timed by hand with one question each, so treat these as rough:
+
+| Situation                                        | First word | Whole answer |
+| ------------------------------------------------ | ---------- | ------------ |
+| Five passages per answer (the default)           | 3.3 s      | 3.7 s        |
+| Three passages per answer (`RAG_TOP_K=3`)        | 2.3 s      | 2.4 s        |
+| First question after the model has been unloaded | 6.3 s      | 6.5 s        |
+
+Most of the wait is the model reading the passages before it writes, which is why giving it fewer is the setting that helps. About a second is the separate call that classifies the message. Ollama unloads a model after five idle minutes by default, and the last row is the price of loading it again; `OLLAMA_KEEP_ALIVE` sets how long it stays. A hosted model reads faster and never unloads, but has not been timed here.
 
 ## API
 
@@ -295,7 +307,7 @@ Run on a laptop, with no hosted model: `gemma4:12b` for chat with thinking off, 
 Read these for what they are:
 
 - **The set is small and written by the same person as the system.** 38 cases over 4 documents. Passing all of them shows the pipeline does what it was built to do on the cases its author thought of. It says little about how it would do on a real company's documents and customers.
-- **It is one model, run twice.** Both runs passed every case, and the second is the saved report. Model output still varies between runs, and a different model will behave differently. It has not been run against a hosted model.
+- **It is one model, run three times.** Twice with five passages per answer and once with three, which is the saved report and the setting shown above. All three passed every case. Model output still varies between runs, and a different model will behave differently. It has not been run against a hosted model.
 - **The first runs did not pass.** Two earlier runs passed 35 of 38, with the same three failures each time. The model had answered correctly but cited two sources in one pair of brackets, as in `[1, 2]`, which the citation reader did not recognize, so the answers were treated as ungrounded and handed off. The reader now accepts that form, and the report now says why a case was handed off and what the assistant said.
 
 ## Checks
