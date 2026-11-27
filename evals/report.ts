@@ -6,6 +6,8 @@ export interface ReportInput {
   /** Null for a retrieval-only run. */
   readonly chatModel: string | null;
   readonly documents: number;
+  /** How many retrieved passages the chat model is given for each answer. */
+  readonly passages: number;
   readonly retrieval: RetrievalSummary;
   readonly chat: {
     readonly summary: ChatSummary;
@@ -24,6 +26,7 @@ export function formatReport(input: ReportInput): string {
     `- Embedding model: \`${input.embeddingModel}\``,
     `- Chat model: ${input.chatModel === null ? 'not run' : `\`${input.chatModel}\``}`,
     `- Knowledge base: ${String(input.documents)} documents`,
+    `- Passages given to the model for each answer: ${String(input.passages)}`,
     '',
   ];
 

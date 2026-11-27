@@ -75,6 +75,7 @@ try {
       embeddingModel: embedder.model,
       chatModel: retrievalOnly ? null : (config.llm?.model ?? null),
       documents,
+      passages: config.rag.topK,
       retrieval,
       chat,
     });

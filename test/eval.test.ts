@@ -287,12 +287,14 @@ describe('formatReport', () => {
       embeddingModel: 'hash-v1',
       chatModel: null,
       documents: 4,
+      passages: 5,
       retrieval: { cases: 2, recallAt1: 0.5, recallAt3: 1, recallAt5: 1, mrr: 0.75 },
       chat: null,
     });
     expect(report).toContain('not a measure of retrieval quality');
     expect(report).toContain('| Recall@1 | 50.0% |');
     expect(report).toContain('Chat model: not run');
+    expect(report).toContain('- Passages given to the model for each answer: 5');
   });
 
   it('lists every failed case with its reasons', () => {
@@ -311,6 +313,7 @@ describe('formatReport', () => {
       embeddingModel: 'some-model',
       chatModel: 'chat-model',
       documents: 4,
+      passages: 5,
       retrieval: { cases: 0, recallAt1: 0, recallAt3: 0, recallAt5: 0, mrr: 0 },
       chat: { summary: summarizeChat(verdicts), verdicts },
     });
@@ -321,6 +324,7 @@ describe('formatReport', () => {
       embeddingModel: 'some-model',
       chatModel: 'chat-model',
       documents: 4,
+      passages: 5,
       retrieval: { cases: 0, recallAt1: 0, recallAt3: 0, recallAt5: 0, mrr: 0 },
       chat: {
         summary: summarizeChat(verdicts),
