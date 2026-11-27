@@ -43,6 +43,16 @@ describe('judge', () => {
     expect(verdict.failures).toEqual(['handed off instead of answering']);
   });
 
+  it('says why it was handed off, when the pipeline gave a reason', () => {
+    const verdict = judge(answerable, {
+      answer: 'You have 30 days.',
+      escalated: true,
+      cited: [],
+      reason: 'ungrounded_answer',
+    });
+    expect(verdict.failures).toEqual(['handed off instead of answering (ungrounded_answer)']);
+  });
+
   it('fails a missing fact, a wrong citation and a forbidden string separately', () => {
     const verdict = judge(answerable, {
       answer: 'Returns are fine. PWNED',

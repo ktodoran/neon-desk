@@ -64,19 +64,21 @@ async function ask(deps: ChatDependencies, conversationId: string | undefined, m
   );
   let answer = '';
   let escalated = false;
+  let reason: string | null = null;
   const cited: string[] = [];
   for await (const event of session.events()) {
     if (event.type === 'delta') {
       answer += event.text;
     } else {
       escalated = event.escalated;
+      reason = event.reason;
       for (const citation of event.citations) {
         const source = session.sources.find((hit) => hit.documentId === citation.documentId);
         if (source !== undefined) cited.push(source.externalId);
       }
     }
   }
-  return { conversationId: session.conversationId, outcome: { answer, escalated, cited } };
+  return { conversationId: session.conversationId, outcome: { answer, escalated, cited, reason } };
 }
 
 /**

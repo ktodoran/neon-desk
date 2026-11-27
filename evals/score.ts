@@ -6,6 +6,8 @@ export interface CaseOutcome {
   readonly escalated: boolean;
   /** File names of the documents the answer cited. */
   readonly cited: readonly string[];
+  /** Why it was handed off, as the pipeline reported it. */
+  readonly reason?: string | null;
 }
 
 export interface CaseVerdict {
@@ -33,7 +35,10 @@ export function judge(testCase: EvalCase, outcome: CaseOutcome): CaseVerdict {
     failures.push(
       expect.route === 'handoff'
         ? 'answered instead of handing off'
-        : 'handed off instead of answering',
+        : // The reason separates a routing mistake from an answer that cited nothing.
+          `handed off instead of answering${
+            typeof outcome.reason === 'string' ? ` (${outcome.reason})` : ''
+          }`,
     );
   }
 
