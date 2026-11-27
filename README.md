@@ -316,7 +316,7 @@ npm run build
 - **Only card numbers are redacted.** Other personal data in a message is stored as written.
 - **The widget forgets on reload.** The server keeps the conversation, but the widget does not restore it after the page is refreshed.
 - **The widget is English only**, and renders answers as plain text: Markdown in an answer is shown as written.
-- **The widget's motion was checked in Chrome.** The logic is unit tested, but there is no automated browser test, and Safari and Firefox have not been checked.
+- **The widget's motion was checked by hand, in Chrome and Safari.** The logic is unit tested, but there is no automated browser test, and Firefox has not been checked.
 
 ## Layout
 
