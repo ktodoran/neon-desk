@@ -73,6 +73,11 @@ export function formatReport(input: ReportInput): string {
       lines.push('### Failed cases', '');
       for (const verdict of failed) {
         lines.push(`- \`${verdict.id}\`: ${verdict.failures.join('; ')}`);
+        if (verdict.answer !== undefined) {
+          // One line of what it said: enough to tell a wrong answer from a wrong format.
+          const said = verdict.answer.replace(/\s+/g, ' ').trim();
+          lines.push(`  - It said: "${said.length > 240 ? `${said.slice(0, 240)}…` : said}"`);
+        }
       }
       lines.push('');
     }

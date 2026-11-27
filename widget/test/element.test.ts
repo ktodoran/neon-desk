@@ -104,6 +104,28 @@ describe('<neon-desk>', () => {
     expect(shadow(widget).querySelector('.nd-log')?.getAttribute('aria-busy')).toBe('false');
   });
 
+  it('turns sources cited in one pair of brackets into a marker each', async () => {
+    const widget = mount();
+    widget.transport = scripted(
+      { type: 'delta', text: 'Five to seven days [1, 2].' },
+      {
+        type: 'done',
+        citations: [
+          { marker: 1, title: 'Shipping', url: 'https://example.com/shipping' },
+          { marker: 2, title: 'FAQ', url: null },
+        ],
+        reason: null,
+      },
+    );
+
+    await widget.ask('How long does shipping take?');
+
+    expect(text(widget, '.nd-message[data-role="assistant"] .nd-marker')).toEqual(['1', '2']);
+    expect(text(widget, '.nd-message[data-role="assistant"] .nd-bubble').at(-1)).toBe(
+      'Five to seven days 12.',
+    );
+  });
+
   it('leaves a bracketed number alone when no source goes with it', async () => {
     const widget = mount();
     widget.transport = scripted(

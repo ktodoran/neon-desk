@@ -19,6 +19,8 @@ export interface CaseVerdict {
   readonly routeCorrect: boolean;
   /** Null when the case does not expect a cited source. */
   readonly citationCorrect: boolean | null;
+  /** What the assistant said, kept for a failed case so the report can show it. */
+  readonly answer?: string;
 }
 
 function matches(pattern: string, text: string): boolean {
@@ -65,6 +67,7 @@ export function judge(testCase: EvalCase, outcome: CaseOutcome): CaseVerdict {
     failures,
     routeCorrect,
     citationCorrect,
+    ...(failures.length > 0 && outcome.answer !== '' ? { answer: outcome.answer } : {}),
   };
 }
 

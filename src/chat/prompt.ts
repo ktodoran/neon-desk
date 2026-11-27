@@ -64,12 +64,20 @@ export function handoffMessage(
   }
 }
 
+/**
+ * A citation as models write it: one number in brackets, or several sharing a
+ * pair, as in [1, 3]. The prompt asks for the first; some models group anyway.
+ */
+export const CITATION = /\[(\d{1,3}(?:\s*,\s*\d{1,3})*)\]/g;
+
 /** The source numbers an answer cited, in order of first appearance, without repeats. */
 export function citedMarkers(answer: string, sourceCount: number): number[] {
   const seen = new Set<number>();
-  for (const match of answer.matchAll(/\[(\d{1,3})\]/g)) {
-    const marker = Number(match[1]);
-    if (marker >= 1 && marker <= sourceCount) seen.add(marker);
+  for (const match of answer.matchAll(CITATION)) {
+    for (const part of (match[1] ?? '').split(',')) {
+      const marker = Number(part);
+      if (marker >= 1 && marker <= sourceCount) seen.add(marker);
+    }
   }
   return [...seen];
 }

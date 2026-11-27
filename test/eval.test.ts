@@ -315,6 +315,19 @@ describe('formatReport', () => {
       chat: { summary: summarizeChat(verdicts), verdicts },
     });
     expect(report).toContain('- `a`: x; y');
+    expect(report).not.toContain('It said');
+    const withAnswer = formatReport({
+      date: '2026-01-01',
+      embeddingModel: 'some-model',
+      chatModel: 'chat-model',
+      documents: 4,
+      retrieval: { cases: 0, recallAt1: 0, recallAt3: 0, recallAt5: 0, mrr: 0 },
+      chat: {
+        summary: summarizeChat(verdicts),
+        verdicts: verdicts.map((verdict) => ({ ...verdict, answer: 'Five to\nseven days.' })),
+      },
+    });
+    expect(withAnswer).toContain('  - It said: "Five to seven days."');
     expect(report).not.toContain('not a measure of retrieval quality');
   });
 });

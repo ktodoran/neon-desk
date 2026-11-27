@@ -749,19 +749,28 @@ export class NeonDeskElement extends HTMLElement {
   /** The answer's text, with each "[2]" the model wrote turned into a small source marker. */
   private withMarkers(message: Message): (Node | string)[] {
     const known = new Map(message.citations.map((citation) => [citation.marker, citation]));
-    return message.text.split(/(\[\d{1,3}\])/).map((part) => {
-      const marker = /^\[(\d{1,3})\]$/.exec(part);
-      const citation = marker === null ? undefined : known.get(Number(marker[1]));
-      if (citation === undefined) return part;
-      const url = safeUrl(citation.url);
-      const attributes = { class: 'nd-marker', title: citation.title };
-      return url === null
-        ? h('span', attributes, String(citation.marker))
-        : h(
-            'a',
-            { ...attributes, href: url, target: '_blank', rel: 'noopener' },
-            String(citation.marker),
-          );
-    });
+    // One number in brackets, or several sharing a pair, as in [1, 3].
+    return message.text
+      .split(/(\[\d{1,3}(?:\s*,\s*\d{1,3})*\])/)
+      .flatMap((part): (Node | string)[] => {
+        const group = /^\[([\d\s,]+)\]$/.exec(part);
+        const cited = (group?.[1] ?? '')
+          .split(',')
+          .map((number) => known.get(Number(number)))
+          .filter((citation) => citation !== undefined);
+        // A bracketed number with no source behind it is the customer's text, not a citation.
+        if (cited.length === 0) return [part];
+        return cited.map((citation) => {
+          const url = safeUrl(citation.url);
+          const attributes = { class: 'nd-marker', title: citation.title };
+          return url === null
+            ? h('span', attributes, String(citation.marker))
+            : h(
+                'a',
+                { ...attributes, href: url, target: '_blank', rel: 'noopener' },
+                String(citation.marker),
+              );
+        });
+      });
   }
 }

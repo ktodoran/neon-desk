@@ -48,6 +48,10 @@ describe('citedMarkers', () => {
     expect(citedMarkers('B [2]. A [1]. B again [2].', 3)).toEqual([2, 1]);
   });
 
+  it('reads several sources cited in one pair of brackets', () => {
+    expect(citedMarkers('Five to seven days [1, 3]. Free over $50 [2,9].', 3)).toEqual([1, 3, 2]);
+  });
+
   it('ignores markers that do not match a source', () => {
     expect(citedMarkers('See [0], [4] and [x].', 3)).toEqual([]);
   });
