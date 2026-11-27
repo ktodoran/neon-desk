@@ -99,7 +99,7 @@
   <body>
     <main>
       <h1>Neon Desk widget</h1>
-      <p>
+      <p id="mode">
         The chat in the corner is the widget. This page runs it in demo mode: the answers are
         scripted from the example help pages in the repository, so it works without a server or a
         model.
@@ -179,8 +179,29 @@
         </svg>`,
       });
 
+      // ?server=http://localhost:3000 swaps the scripted answers for a Neon Desk
+      // server on this machine. Only this machine: a link to this page must not be
+      // able to put someone else's server behind it.
+      function localServer() {
+        const asked = new URLSearchParams(location.search).get('server');
+        if (asked === null) return null;
+        try {
+          const url = new URL(asked);
+          const local = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+          return url.protocol === 'http:' && local ? url.origin : null;
+        } catch {
+          return null;
+        }
+      }
+      const server = localServer();
+      if (server !== null) {
+        document.getElementById('mode').textContent =
+          `The chat in the corner is the widget, connected to the Neon Desk server at ${server}. ` +
+          'The answers come from that server and the model behind it.';
+      }
+
       const shared = {
-        demo: '',
+        ...(server === null ? { demo: '' } : { endpoint: server }),
         suggestions:
           'What’s your return policy?|How long does shipping take?|I’d like to talk to a person',
         'handoff-url': 'mailto:support@example.com',

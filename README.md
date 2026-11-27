@@ -157,6 +157,8 @@ npm run demo    # http://127.0.0.1:8000
 
 The demo page runs the widget with the `demo` attribute, which swaps the server for a few scripted answers taken from `examples/knowledge`. It follows the same rules as the real assistant: answer and cite, refuse to act, hand off when asked or when nothing matches. The footer says "demo mode" whenever it is on.
 
+To put a real server behind the same page, start one with `ALLOWED_ORIGINS=http://127.0.0.1:8000` and open `http://127.0.0.1:8000/?server=http://localhost:3000`. The page accepts only a server on the same machine.
+
 ### Settings
 
 Everything is an attribute, and changing one restyles the widget in place without losing the conversation.
