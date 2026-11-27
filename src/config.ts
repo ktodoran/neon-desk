@@ -43,6 +43,8 @@ const schema = z
     EMBEDDINGS_API_KEY: z.string().min(1).optional(),
     EMBEDDINGS_BASE_URL: z.url().default('https://api.openai.com/v1'),
     EMBEDDINGS_MODEL: z.string().min(1).default('text-embedding-3-small'),
+    // For a model whose vectors are narrower than the stored 1536 and cannot be resized.
+    EMBEDDINGS_DIMENSIONS: z.coerce.number().int().min(1).max(1536).optional(),
 
     // Chat is optional: without an LLM the server still ingests, searches and reports health.
     LLM_PROVIDER: z.enum(['anthropic', 'openai']).optional(),
@@ -126,6 +128,8 @@ export interface Config {
     readonly apiKey: string | undefined;
     readonly baseUrl: string;
     readonly model: string;
+    /** The model's own vector size, when it is narrower than the stored width. */
+    readonly nativeDimensions: number | undefined;
   };
   /** Undefined when no LLM is configured; the chat endpoint is then unavailable. */
   readonly llm:
@@ -197,6 +201,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       apiKey: e.EMBEDDINGS_API_KEY,
       baseUrl: e.EMBEDDINGS_BASE_URL.replace(/\/+$/, ''),
       model: e.EMBEDDINGS_MODEL,
+      nativeDimensions: e.EMBEDDINGS_DIMENSIONS,
     },
     llm,
     assistant: { companyName: e.COMPANY_NAME, supportContact: e.SUPPORT_CONTACT },

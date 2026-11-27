@@ -120,6 +120,19 @@ describe('loadConfig', () => {
     );
   });
 
+  it('takes the size of a narrower embedding model, and refuses one wider than the column', () => {
+    expect(loadConfig(base).embeddings.nativeDimensions).toBeUndefined();
+    expect(
+      loadConfig({ ...base, EMBEDDINGS_DIMENSIONS: '' }).embeddings.nativeDimensions,
+    ).toBeUndefined();
+    expect(loadConfig({ ...base, EMBEDDINGS_DIMENSIONS: '768' }).embeddings.nativeDimensions).toBe(
+      768,
+    );
+    expect(() => loadConfig({ ...base, EMBEDDINGS_DIMENSIONS: '3072' })).toThrow(
+      /EMBEDDINGS_DIMENSIONS/,
+    );
+  });
+
   it('strips a trailing slash from the embeddings base URL', () => {
     const config = loadConfig({ ...base, EMBEDDINGS_BASE_URL: 'https://example.com/v1/' });
     expect(config.embeddings.baseUrl).toBe('https://example.com/v1');

@@ -23,7 +23,13 @@ export interface OpenAIEmbedderOptions {
   /** Base URL of any OpenAI-compatible API, without a trailing slash. */
   readonly baseUrl: string;
   readonly model: string;
+  /** Width of the vectors this embedder returns. */
   readonly dimensions?: number;
+  /**
+   * The model's own vector size, when it is smaller than `dimensions` and the
+   * model cannot be asked for another. Its vectors are padded with zeros.
+   */
+  readonly nativeDimensions?: number;
   /** Inputs per request. */
   readonly batchSize?: number;
   /** Injectable for tests. */
@@ -58,6 +64,15 @@ function isEmbeddingsResponse(body: unknown): body is EmbeddingsResponse {
  */
 export function createOpenAIEmbedder(options: OpenAIEmbedderOptions): Embedder {
   const dimensions = options.dimensions ?? EMBEDDING_DIMENSIONS;
+  const native = options.nativeDimensions ?? dimensions;
+  if (native > dimensions) {
+    throw new EmbeddingError(
+      `The model's vectors (${String(native)}) are wider than the stored width (${String(dimensions)})`,
+    );
+  }
+  // Zeros add nothing to a dot product or a length, so a padded vector has the
+  // same cosine similarity to every other padded vector as it had before.
+  const padding = new Array<number>(dimensions - native).fill(0);
   const batchSize = options.batchSize ?? 64;
   const doFetch = options.fetch ?? fetch;
 
@@ -70,7 +85,12 @@ export function createOpenAIEmbedder(options: OpenAIEmbedderOptions): Embedder {
           'content-type': 'application/json',
           authorization: `Bearer ${options.apiKey}`,
         },
-        body: JSON.stringify({ model: options.model, input: batch, dimensions }),
+        // A model with a size of its own is not asked for one: many reject the field.
+        body: JSON.stringify({
+          model: options.model,
+          input: batch,
+          ...(options.nativeDimensions === undefined ? { dimensions } : {}),
+        }),
       });
     } catch (cause) {
       throw new EmbeddingError('Embeddings request failed before a response arrived', { cause });
@@ -86,12 +106,12 @@ export function createOpenAIEmbedder(options: OpenAIEmbedderOptions): Embedder {
     }
 
     const vectors = [...body.data].sort((a, b) => a.index - b.index).map((item) => item.embedding);
-    if (vectors.some((vector) => vector.length !== dimensions)) {
+    if (vectors.some((vector) => vector.length !== native)) {
       throw new EmbeddingError(
-        `Embeddings response had the wrong dimension (expected ${String(dimensions)})`,
+        `Embeddings response had the wrong dimension (expected ${String(native)})`,
       );
     }
-    return vectors;
+    return padding.length === 0 ? vectors : vectors.map((vector) => [...vector, ...padding]);
   }
 
   return {
@@ -154,6 +174,7 @@ export interface EmbedderConfig {
   readonly apiKey: string | undefined;
   readonly baseUrl: string;
   readonly model: string;
+  readonly nativeDimensions?: number | undefined;
 }
 
 export function createEmbedder(config: EmbedderConfig): Embedder {
@@ -165,6 +186,7 @@ export function createEmbedder(config: EmbedderConfig): Embedder {
     apiKey: config.apiKey,
     baseUrl: config.baseUrl,
     model: config.model,
+    ...(config.nativeDimensions === undefined ? {} : { nativeDimensions: config.nativeDimensions }),
   });
 }
 
