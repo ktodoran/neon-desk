@@ -4,7 +4,7 @@ A retrieval-grounded customer support assistant any company can embed. It answer
 
 **[Try the widget](https://ktodoran.github.io/neon-desk/)** in demo mode: scripted answers from the example help pages, no server and no model behind it.
 
-> **Status: under construction.** The knowledge base, retrieval, chat API, guardrails, evaluation harness and embeddable widget are built and tested. The evaluation has not yet been run against a live model. See [Roadmap](#roadmap) and [Known limits](#known-limits).
+> **Status: under construction.** The knowledge base, retrieval, chat API, guardrails, evaluation harness and embeddable widget are built and tested. The evaluation has been run against a small model on a laptop, and not yet against a hosted one. See [Roadmap](#roadmap) and [Known limits](#known-limits).
 
 ## What works today
 
@@ -18,7 +18,7 @@ A retrieval-grounded customer support assistant any company can embed. It answer
 - **API protection.** An origin allowlist, per-client rate limiting on the chat route, and a request size limit.
 - **An evaluation harness** with 38 cases covering answerable questions, questions the knowledge base cannot answer, requests to act, follow-ups and injection attempts.
 - **An embeddable widget.** One script tag and a `<neon-desk>` element put the assistant on any site, restyled by attributes. See [The widget](#the-widget).
-- **Anthropic and OpenAI-compatible models** behind one small interface.
+- **Anthropic and OpenAI-compatible models** behind one small interface, including a model running on your own machine with no API key.
 - **Tests that run against a real Postgres**, in process, with no Docker.
 
 ## Quick start
@@ -55,6 +55,33 @@ curl -N -X POST http://localhost:3000/v1/chat \
 ```
 
 For real retrieval quality, also set `EMBEDDINGS_PROVIDER=openai` with an API key and re-ingest. Any service that implements the OpenAI embeddings endpoint works through `EMBEDDINGS_BASE_URL`.
+
+### Without an API key: a local model
+
+Both halves can run on your own machine through [Ollama](https://ollama.com), which serves the OpenAI API on `localhost`. Pull a chat model and an embedding model:
+
+```bash
+ollama pull gemma4:12b
+ollama pull qwen3-embedding:0.6b
+```
+
+Then in `.env`:
+
+```bash
+LLM_PROVIDER=openai
+LLM_BASE_URL=http://localhost:11434/v1
+LLM_API_KEY=ollama                 # a local server does not check it
+LLM_MODEL=gemma4:12b
+LLM_REASONING_EFFORT=none          # this model thinks before it answers unless told not to
+
+EMBEDDINGS_PROVIDER=openai
+EMBEDDINGS_BASE_URL=http://localhost:11434/v1
+EMBEDDINGS_API_KEY=ollama
+EMBEDDINGS_MODEL=qwen3-embedding:0.6b
+EMBEDDINGS_DIMENSIONS=1024         # the model's own width, padded to the stored 1536
+```
+
+The [evaluation](#evaluation) below was run with exactly these settings, on Ollama 0.40.18. The HTTP server uses the same model and embedding clients, but it has not itself been run against a local model. Re-ingest after changing the embedding model: documents are re-embedded when the model's name changes.
 
 ## API
 
@@ -249,7 +276,23 @@ The harness loads the sample knowledge base into an in-process Postgres, runs ev
 
 Every check is mechanical: which document was cited, whether a required fact appears, whether a forbidden string leaked. There is no model grading another model, so a run costs only the calls being evaluated.
 
-**Results have not been published yet.** The harness has been exercised end to end against a stand-in model, and a retrieval regression check runs with the test suite, but no numbers from a live model exist. They will be added here, with the model names and date, once a real run has been done.
+### Results
+
+One run, on a laptop, with no hosted model: `gemma4:12b` for chat with thinking off, `qwen3-embedding:0.6b` for embeddings, both through Ollama. The full report is in [evals/RESULTS.md](evals/RESULTS.md).
+
+| Measure                                | Result      |
+| -------------------------------------- | ----------- |
+| Cases passed                           | 38 of 38    |
+| Routing accuracy                       | 100%        |
+| Citation accuracy                      | 100%        |
+| Retrieval: right document ranked first | 90.9% of 22 |
+| Retrieval: right document in the top 3 | 100% of 22  |
+
+Read these for what they are:
+
+- **The set is small and written by the same person as the system.** 38 cases over 4 documents. Passing all of them shows the pipeline does what it was built to do on the cases its author thought of. It says little about how it would do on a real company's documents and customers.
+- **It is one run of one model.** Model output varies between runs, and a different model will behave differently. It has not been run against a hosted model.
+- **The first runs did not pass.** Two runs before this one passed 35 of 38, with the same three failures each time. The model had answered correctly but cited two sources in one pair of brackets, as in `[1, 2]`, which the citation reader did not recognize, so the answers were treated as ungrounded and handed off. The reader now accepts that form, and the report now says why a case was handed off and what the assistant said.
 
 ## Checks
 
@@ -303,11 +346,11 @@ npm run build
 
 **Environment booleans are parsed explicitly.** `z.coerce.boolean()` turns the string `"false"` into `true`. Only `true`, `false`, `1` and `0` are accepted.
 
-**The embedding width is fixed at 1536.** It is part of the column type. Changing to a model with a different width needs a migration and a re-ingest.
+**The embedding width is fixed at 1536.** It is part of the column type. A model with narrower vectors still fits: set `EMBEDDINGS_DIMENSIONS` to its width and its vectors are padded with zeros, which changes neither their lengths nor the angles between them, so every similarity score is the same as before. A wider model has to be asked for 1536, or needs a migration and a re-ingest.
 
 ## Known limits
 
-- **Quality has not been measured against a live model.** The evaluation harness exists; published numbers do not.
+- **Quality has been measured once, on a small set.** One run of 38 cases against a small local model, described under [Results](#results). There are no numbers for a hosted model or for a real company's documents.
 - **Citations are detected, not verified.** The server checks which source numbers the answer referenced. The evaluation checks that the cited document holds the answer and that required facts appear, but nothing verifies each claim sentence by sentence.
 - **Prompt-injection defenses are mitigations.** Fencing, neutralized tags and routing reduce the attack surface. The injection cases in the evaluation measure how well that holds for a given model; they do not prove it.
 - **Rate-limit counters live in one process.** Behind several instances the effective limit is multiplied until a shared store is added.
@@ -340,7 +383,7 @@ examples/widget    Demo page for the widget
 
 1. **Foundation** — done.
 2. **Retrieval and chat** — done.
-3. **Guardrails and evaluation** — built. Remaining: run the evaluation against a live model and publish the results.
+3. **Guardrails and evaluation** — done for a local model. Remaining: a run against a hosted model.
 4. **Embeddable widget** — done.
 5. **Deployment** — a Shopify example and an AWS deployment guide.
 
