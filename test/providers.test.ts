@@ -108,6 +108,58 @@ describe('openai client', () => {
     });
   });
 
+  it('names the length cap the way the server it is talking to expects', async () => {
+    const openai = fetchReturning(() => new Response(streamOf(...stream)));
+    const local = fetchReturning(() => new Response(streamOf(...stream)));
+
+    await collect(
+      createOpenAIClient({
+        ...options,
+        baseUrl: 'https://api.openai.com/v1',
+        fetch: openai,
+      }).stream(request),
+    );
+    await collect(
+      createOpenAIClient({
+        ...options,
+        baseUrl: 'http://localhost:11434/v1',
+        fetch: local,
+      }).stream(request),
+    );
+
+    expect(sentBody(openai)).toMatchObject({ max_completion_tokens: 50 });
+    expect(sentBody(openai)).not.toHaveProperty('max_tokens');
+    expect(sentBody(local)).toMatchObject({ max_tokens: 50 });
+    expect(sentBody(local)).not.toHaveProperty('max_completion_tokens');
+  });
+
+  it('asks for a reasoning effort only when one is set', async () => {
+    const plain = fetchReturning(() => new Response(streamOf(...stream)));
+    const quiet = fetchReturning(() => new Response(streamOf(...stream)));
+
+    await collect(createOpenAIClient({ ...options, fetch: plain }).stream(request));
+    await collect(
+      createOpenAIClient({ ...options, reasoningEffort: 'none', fetch: quiet }).stream(request),
+    );
+
+    expect(sentBody(plain)).not.toHaveProperty('reasoning_effort');
+    expect(sentBody(quiet)).toMatchObject({ reasoning_effort: 'none' });
+  });
+
+  it('keeps a model’s thinking out of the answer', async () => {
+    const thinking = [
+      'data: {"choices":[{"index":0,"delta":{"role":"assistant","reasoning":"The user wants"}}]}\n\n',
+      'data: {"choices":[{"index":0,"delta":{"reasoning":" a greeting."}}]}\n\n',
+      'data: {"choices":[{"index":0,"delta":{"content":"Hello"}}]}\n\n',
+      'data: [DONE]\n\n',
+    ];
+    const fetchMock = fetchReturning(() => new Response(streamOf(...thinking)));
+
+    expect(
+      await collect(createOpenAIClient({ ...options, fetch: fetchMock }).stream(request)),
+    ).toBe('Hello');
+  });
+
   it('rejects malformed JSON in the stream', async () => {
     const fetchMock = fetchReturning(() => new Response(streamOf('data: {not json\n\n')));
     const client = createOpenAIClient({ ...options, fetch: fetchMock });

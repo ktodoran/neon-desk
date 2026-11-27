@@ -52,6 +52,11 @@ const schema = z
     LLM_MODEL: z.string().min(1).optional(),
     LLM_BASE_URL: z.url().optional(),
     LLM_MAX_TOKENS: z.coerce.number().int().min(64).max(8192).default(800),
+    // Sent as reasoning_effort to an OpenAI-compatible server. The names are the model's own.
+    LLM_REASONING_EFFORT: z
+      .string()
+      .regex(/^[a-z]{1,16}$/)
+      .optional(),
 
     COMPANY_NAME: z.string().min(1).default('our company'),
     SUPPORT_CONTACT: z.string().min(1).default('our support team'),
@@ -139,6 +144,7 @@ export interface Config {
         readonly model: string;
         readonly baseUrl: string;
         readonly maxTokens: number;
+        readonly reasoningEffort: string | undefined;
       }
     | undefined;
   readonly assistant: { readonly companyName: string; readonly supportContact: string };
@@ -183,6 +189,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
           model: e.LLM_MODEL,
           baseUrl: (e.LLM_BASE_URL ?? DEFAULT_LLM_BASE_URL[e.LLM_PROVIDER]).replace(/\/+$/, ''),
           maxTokens: e.LLM_MAX_TOKENS,
+          reasoningEffort: e.LLM_REASONING_EFFORT,
         }
       : undefined;
 

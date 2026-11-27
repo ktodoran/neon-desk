@@ -133,6 +133,17 @@ describe('loadConfig', () => {
     );
   });
 
+  it('passes a reasoning effort through, and refuses one that is not a plain word', () => {
+    const llm = { LLM_PROVIDER: 'openai', LLM_API_KEY: 'k', LLM_MODEL: 'm' };
+    expect(loadConfig({ ...base, ...llm }).llm?.reasoningEffort).toBeUndefined();
+    expect(loadConfig({ ...base, ...llm, LLM_REASONING_EFFORT: 'none' }).llm?.reasoningEffort).toBe(
+      'none',
+    );
+    expect(() => loadConfig({ ...base, ...llm, LLM_REASONING_EFFORT: 'none", "x": "y' })).toThrow(
+      /LLM_REASONING_EFFORT/,
+    );
+  });
+
   it('strips a trailing slash from the embeddings base URL', () => {
     const config = loadConfig({ ...base, EMBEDDINGS_BASE_URL: 'https://example.com/v1/' });
     expect(config.embeddings.baseUrl).toBe('https://example.com/v1');

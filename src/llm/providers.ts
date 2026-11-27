@@ -7,6 +7,11 @@ export interface ProviderOptions {
   /** Base URL without a trailing slash. */
   readonly baseUrl: string;
   readonly model: string;
+  /**
+   * How much the model should reason before it answers, where the server takes
+   * `reasoning_effort`. "none" turns thinking off on models that think by default.
+   */
+  readonly reasoningEffort?: string | undefined;
   /** Injectable for tests. */
   readonly fetch?: typeof fetch;
 }
@@ -83,6 +88,11 @@ export function createAnthropicClient(options: ProviderOptions): LlmClient {
 /** OpenAI Chat Completions API, streamed. Works with any compatible server. */
 export function createOpenAIClient(options: ProviderOptions): LlmClient {
   const doFetch = options.fetch ?? fetch;
+  // The answer's length cap has two names. OpenAI's current models take only the
+  // newer one; other servers that speak this API (Ollama, llama.cpp, vLLM) take
+  // only the older one and ignore a cap sent under the newer name.
+  const capField =
+    new URL(options.baseUrl).hostname === 'api.openai.com' ? 'max_completion_tokens' : 'max_tokens';
 
   return {
     async *stream(request: LlmRequest): AsyncGenerator<string> {
@@ -92,7 +102,10 @@ export function createOpenAIClient(options: ProviderOptions): LlmClient {
         { authorization: `Bearer ${options.apiKey}` },
         {
           model: options.model,
-          max_completion_tokens: request.maxTokens,
+          [capField]: request.maxTokens,
+          ...(options.reasoningEffort === undefined
+            ? {}
+            : { reasoning_effort: options.reasoningEffort }),
           messages: [{ role: 'system', content: request.system }, ...request.messages],
           stream: true,
         },
