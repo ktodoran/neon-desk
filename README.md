@@ -81,7 +81,9 @@ EMBEDDINGS_MODEL=qwen3-embedding:0.6b
 EMBEDDINGS_DIMENSIONS=1024         # the model's own width, padded to the stored 1536
 ```
 
-The [evaluation](#evaluation) below was run with exactly these settings, on Ollama 0.40.18. The HTTP server uses the same model and embedding clients, but it has not itself been run against a local model. Re-ingest after changing the embedding model: documents are re-embedded when the model's name changes.
+The [evaluation](#evaluation) below was run with exactly these settings, on Ollama 0.40.18. A conversation through the HTTP server and the widget was also checked by hand with them: an answer with its sources, a request to act, and a question the help pages do not cover. Re-ingest after changing the embedding model: documents are re-embedded when the model's name changes.
+
+<img src="docs/widget-local-model.png" alt="The widget showing an answer written by the local model: standard shipping takes 5 to 7 business days, with two source markers and the two documents it came from listed below." width="380">
 
 ## API
 
